@@ -2,15 +2,35 @@ from pycocotools.coco import COCO
 import numpy as np
 import skimage.io as io
 import pylab
+import signal
+import os
+import sys
 
+def save_progress(curIndex):
+    print("Saving progress...stopping at {}".format(curIndex))
+    np.save("curIndex", curIndex)
+    sys.exit(0)
 
+personDir = "/home/ubuntu/person_blacked"
+# nonPersonDir = "/home/ubuntu/nonperson"
 coco = COCO("/home/ubuntu/coco/annotations/instances_train2017.json")
 personCatId = coco.getCatIds(catNms=["person"])[0]
-personIds = set(coco.getImgIds(catIds=[personCatId]))
-personDir = "/home/ubuntu/person_blacked"
-nonPersonDir = "/home/ubuntu/nonperson"
+personIds = coco.getImgIds(catIds=[personCatId])
+# allImgIds = coco.getImgIds()
+# nonPersonIds = list(set(allImgIds) - set(personIds)) # Ids of all images with no people
 
-for personId in personIds:
+
+if not os.path.isfile("curIndex.npy"):
+    curIndex = 0
+else:
+    curIndex = np.load("curIndex.npy")
+
+
+signal.signal(signal.SIGINT, lambda signum, frame: save_progress(curIndex))
+
+print("Blacking out images...starting at index {}".format(curIndex))
+while curIndex < len(personIds):
+    personId = personIds[curIndex]
     personImg = coco.loadImgs(ids=[personId])[0]
     img = io.imread(personImg["coco_url"]) # a numpy ndarray; shape is (H, W, 3)
     annIds = coco.getAnnIds(imgIds=[personId], catIds=[personCatId]) # Get annotations for only people, not other objects
@@ -25,9 +45,8 @@ for personId in personIds:
         else:
             img_blacked = img_blacked * binMaskInvert[:, :, np.newaxis] # set any pixels in the segmentation mask to black (0, 0, 0)
     io.imsave("{}/{}.jpg".format(personDir, personId), img_blacked)
-allImgIds = set(coco.getImgIds())
-nonPersonIds = allImgIds - personIds # Ids of all images with no people
-for nonPersonId in nonPersonIds:
-    nonPersonImg = coco.loadImgs(ids=[nonPersonId])[0]
-    img = io.imread(nonPersonImg["coco_url"])
-    io.imsave("{}/{}.jpg".format(nonPersonDir, nonPersonId), img) # Save this image
+    curIndex += 1
+# for nonPersonId in nonPersonIds:
+#    nonPersonImg = coco.loadImgs(ids=[nonPersonId])[0]
+#    img = io.imread(nonPersonImg["coco_url"])
+#    io.imsave("{}/{}.jpg".format(nonPersonDir, nonPersonId), img) # Save this image
