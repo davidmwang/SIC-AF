@@ -12,12 +12,9 @@ def save_progress(curIndex):
     sys.exit(0)
 
 personDir = "/home/ubuntu/person_blacked"
-# nonPersonDir = "/home/ubuntu/nonperson"
 coco = COCO("/home/ubuntu/coco/annotations/instances_train2017.json")
 personCatId = coco.getCatIds(catNms=["person"])[0]
 personIds = coco.getImgIds(catIds=[personCatId])
-# allImgIds = coco.getImgIds()
-# nonPersonIds = list(set(allImgIds) - set(personIds)) # Ids of all images with no people
 
 
 if not os.path.isfile("curIndex.npy"):
@@ -46,7 +43,3 @@ while curIndex < len(personIds):
             img_blacked = img_blacked * binMaskInvert[:, :, np.newaxis] # set any pixels in the segmentation mask to black (0, 0, 0)
     io.imsave("{}/{}.jpg".format(personDir, personId), img_blacked)
     curIndex += 1
-# for nonPersonId in nonPersonIds:
-#    nonPersonImg = coco.loadImgs(ids=[nonPersonId])[0]
-#    img = io.imread(nonPersonImg["coco_url"])
-#    io.imsave("{}/{}.jpg".format(nonPersonDir, nonPersonId), img) # Save this image
