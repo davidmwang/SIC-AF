@@ -17,7 +17,6 @@ personCatId = coco.getCatIds(catNms=["person"])[0]
 personIds = coco.getImgIds(catIds=[personCatId])
 allImgIds = coco.getImgIds()
 nonPersonIds = list(set(allImgIds) - set(personIds)) # Ids of all images with no people
-print(len(nonPersonIds))
 
 
 if not os.path.isfile("curIndex.npy"):
