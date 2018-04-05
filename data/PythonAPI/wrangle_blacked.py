@@ -11,8 +11,27 @@ def save_progress(curIndex):
     np.save("curIndex", curIndex)
     sys.exit(0)
 
-personDir = "/home/ubuntu/person_blacked"
-coco = COCO("/home/ubuntu/coco/annotations/instances_train2017.json")
+def convert_mask_to_rectangular(mask):
+    mask_indices = np.where(mask == 1)
+    row_indices = mask_indices[0]
+    col_indices = mask_indices[1]
+
+    top_left = (np.min(row_indices), np.min(col_indices))
+    bottom_right = (np.max(row_indices), np.max(col_indices))
+
+    cols = np.repeat(np.expand_dims(np.arange(mask.shape[1]), axis=0), repeats=mask.shape[0], axis=0)
+    rows = np.repeat(np.expand_dims(np.arange(mask.shape[0]), axis=1), repeats=mask.shape[1], axis=1)
+
+    newMask = np.logical_and(rows >= top_left[0], rows <= bottom_right[0])
+    newMask = np.logical_and(newMask, cols >= top_left[1])
+    newMask = np.logical_and(newMask, cols <= bottom_right[1]).astype(int)
+
+    return newMask
+
+personMaskDir = "/cs280/home/ubuntu/person_mask"
+personDir = "/cs280/home/ubuntu/person"
+
+coco = COCO("/cs280/home/ubuntu/coco/annotations/instances_train2017.json")
 personCatId = coco.getCatIds(catNms=["person"])[0]
 personIds = coco.getImgIds(catIds=[personCatId])
 
@@ -32,14 +51,14 @@ while curIndex < len(personIds):
     img = io.imread(personImg["coco_url"]) # a numpy ndarray; shape is (H, W, 3)
     annIds = coco.getAnnIds(imgIds=[personId], catIds=[personCatId]) # Get annotations for only people, not other objects
     anns = coco.loadAnns(ids=annIds)
-    img_blacked = img
+    cur_mask = np.zeros((img.shape[0], img.shape[1]))
+
     for ann in anns:
         binMask = coco.annToMask(ann) # ndarray; shape is (H, W)
-        binMaskInvert = 1 - binMask # swap 1's and 0's in binary mask
-        if len(img_blacked.shape) == 2:
-            # some images are black and white and don't have a color dimension
-            img_blacked = img_blacked * binMaskInvert
-        else:
-            img_blacked = img_blacked * binMaskInvert[:, :, np.newaxis] # set any pixels in the segmentation mask to black (0, 0, 0)
-    io.imsave("{}/{}.jpg".format(personDir, personId), img_blacked)
+        cur_mask += convert_mask_to_rectangular(binMask)
+
+    cur_mask = np.clip(cur_mask, 0, 1) # in case of overlapping mask
+    np.save("{}/{}".format(personMaskDir, personId), cur_mask)
+    io.imsave("{}/{}.jpg".format(personDir, personId), img)
+    
     curIndex += 1
