@@ -10,6 +10,19 @@ def rejection_sample_rec(im_width,
                          num_sample):
     """
     randomly sample rectangles within the image
+    mask_rec is a list of the diagonal coordinates of the existing masks
+    For example:
+    [[[1,7],[5,2]],
+     [[3,9],[7,4]]]
+    represents
+
+    rectangle 1 (mask_rec[0])
+    with top left corner at x=1, y=7
+    and bottom right corner at x=5, y=2
+
+    rectangle 2 (mask_rec[1])
+    with top left corner at x=3, y=9
+    and bottom right corner at x=7, y=4
     """
     invalid_rectangles = mask_rec.copy()
     sampled_rectangles = []
