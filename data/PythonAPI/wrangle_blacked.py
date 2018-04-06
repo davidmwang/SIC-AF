@@ -1,4 +1,5 @@
 from pycocotools.coco import COCO
+from utils import rejection_sample_rec, get_mask_from_diagonal_coord
 import numpy as np
 import skimage.io as io
 import pylab
@@ -19,14 +20,7 @@ def convert_mask_to_rectangular(mask):
     top_left = (np.min(row_indices), np.min(col_indices))
     bottom_right = (np.max(row_indices), np.max(col_indices))
 
-    cols = np.repeat(np.expand_dims(np.arange(mask.shape[1]), axis=0), repeats=mask.shape[0], axis=0)
-    rows = np.repeat(np.expand_dims(np.arange(mask.shape[0]), axis=1), repeats=mask.shape[1], axis=1)
-
-    newMask = np.logical_and(rows >= top_left[0], rows <= bottom_right[0])
-    newMask = np.logical_and(newMask, cols >= top_left[1])
-    newMask = np.logical_and(newMask, cols <= bottom_right[1]).astype(int)
-
-    return newMask
+    return get_mask_from_diagonal_coord(top_left, bottom_right, mask)
 
 personMaskDir = "/cs280/home/ubuntu/person_mask"
 personDir = "/cs280/home/ubuntu/person"
@@ -45,20 +39,51 @@ else:
 signal.signal(signal.SIGINT, lambda signum, frame: save_progress(curIndex))
 
 print("Blacking out images...starting at index {}".format(curIndex))
+
 while curIndex < len(personIds):
     personId = personIds[curIndex]
     personImg = coco.loadImgs(ids=[personId])[0]
     img = io.imread(personImg["coco_url"]) # a numpy ndarray; shape is (H, W, 3)
     annIds = coco.getAnnIds(imgIds=[personId], catIds=[personCatId]) # Get annotations for only people, not other objects
     anns = coco.loadAnns(ids=annIds)
-    cur_mask = np.zeros((img.shape[0], img.shape[1]))
+    diag_coord_list = []
 
     for ann in anns:
         binMask = coco.annToMask(ann) # ndarray; shape is (H, W)
-        cur_mask += convert_mask_to_rectangular(binMask)
+        mask_indices = np.where(binMask == 1)
 
-    cur_mask = np.clip(cur_mask, 0, 1) # in case of overlapping mask
-    np.save("{}/{}".format(personMaskDir, personId), cur_mask)
+        row_indices = mask_indices[0]
+        col_indices = mask_indices[1]
+
+        top_left = [np.min(row_indices), binMask.shape[1]-np.min(col_indices)]
+        bottom_right = [np.max(row_indices), binMask.shape[1]-np.max(col_indices)]
+
+        diag_coord_list.append([top_left, bottom_right])
+
+
+    # diag_coord_list = [diag_coord_list[0]]
+    # print(diag_coord_list)
+    new_coords = rejection_sample_rec(im_width=img.shape[0],
+                                      im_height=img.shape[1],
+                                      min_box_width=img.shape[0]/10,
+                                      max_box_width=img.shape[0]/4,
+                                      min_box_height=img.shape[1]/10,
+                                      max_box_height=img.shape[1]/4,
+                                      mask_rec=diag_coord_list,
+                                      num_sample=1)
+    if len(new_coords) == 0:
+        print("@@@@")
+        continue
+    else:
+        assert len(new_coords) == 1
+
+    for coord in new_coords[0]:
+        coord[1] = binMask.shape[1] - coord[1]
+
+    newMask = get_mask_from_diagonal_coord(new_coords[0][0], new_coords[0][1], binMask)
+
+    # cur_mask = np.clip(cur_mask, 0, 1) # in case of overlapping mask
+    np.save("{}/{}".format(personMaskDir, personId), newMask)
     io.imsave("{}/{}.jpg".format(personDir, personId), img)
-    
+    print("generating person index ... ", curIndex)
     curIndex += 1

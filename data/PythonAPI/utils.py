@@ -1,12 +1,12 @@
 import numpy as np
 
-def rejection_sample_rec(im_width, 
+def rejection_sample_rec(im_width,
                          im_height,
                          min_box_width,
                          max_box_width,
                          min_box_height,
-                         max_box_height, 
-                         mask_rec, 
+                         max_box_height,
+                         mask_rec,
                          num_sample):
     """
     randomly sample rectangles within the image
@@ -26,9 +26,10 @@ def rejection_sample_rec(im_width,
     """
     invalid_rectangles = mask_rec.copy()
     sampled_rectangles = []
-    while num_sample > 0:
+    num_attempts = 0
+    while num_sample > 0 and num_attempts < 1e6:
         rand_scales = np.random.uniform(size=(2))
-        rand_pt = np.array([min(rand_scales[0]*im_width,im_width-max_box_width), 
+        rand_pt = np.array([min(rand_scales[0]*im_width,im_width-max_box_width),
                             max(rand_scales[1]*im_height,max_box_height)])
         rand_box_w = min_box_width + np.random.uniform() * (max_box_width - min_box_width)
         rand_box_h = min_box_height + np.random.uniform() * (max_box_height - min_box_height)
@@ -40,7 +41,8 @@ def rejection_sample_rec(im_width,
         if valid:
             sampled_rectangles.append(new_box)
             num_sample -= 1
-        print(num_sample)
+        # print(num_sample)
+        num_attempts += 1
     return sampled_rectangles
 
 def overlap_rec(rec1, rec2):
@@ -50,21 +52,21 @@ def overlap_rec(rec1, rec2):
         return False
     return True
 
-def visualization(im_width, 
+def visualization(im_width,
                   im_height,
                   min_box_width,
                   max_box_width,
                   min_box_height,
-                  max_box_height, 
-                  mask_rec, 
+                  max_box_height,
+                  mask_rec,
                   num_sample):
-    box = rejection_sample_rec(im_width, 
+    box = rejection_sample_rec(im_width,
                                im_height,
                                min_box_width,
                                max_box_width,
                                min_box_height,
-                               max_box_height, 
-                               mask_rec, 
+                               max_box_height,
+                               mask_rec,
                                num_sample)
     fig = plt.figure()
     ax = fig.add_subplot(111, aspect='equal')
@@ -87,5 +89,20 @@ def visualization(im_width,
                 b[0][1]-b[1][1],      # height
                 color='blue'
             )
-        )   
+        )
     plt.show()
+
+def get_mask_from_diagonal_coord(top_left, bottom_right, img):
+    """
+    Produces a 2-d binary rectangular mask for img given the top left and bottom
+    right coordinates of the img.
+    """
+
+    cols = np.repeat(np.expand_dims(np.arange(img.shape[1]), axis=0), repeats=img.shape[0], axis=0)
+    rows = np.repeat(np.expand_dims(np.arange(img.shape[0]), axis=1), repeats=img.shape[1], axis=1)
+
+    newMask = np.logical_and(rows >= top_left[0], rows <= bottom_right[0])
+    newMask = np.logical_and(newMask, cols >= top_left[1])
+    newMask = np.logical_and(newMask, cols <= bottom_right[1]).astype(int)
+
+    return newMask
