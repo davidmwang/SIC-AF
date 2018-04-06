@@ -66,13 +66,14 @@ while curIndex < len(personIds):
     new_coords = rejection_sample_rec(im_width=img.shape[0],
                                       im_height=img.shape[1],
                                       min_box_width=img.shape[0]/10,
-                                      max_box_width=img.shape[0]/4,
+                                      max_box_width=img.shape[0]/2,
                                       min_box_height=img.shape[1]/10,
-                                      max_box_height=img.shape[1]/4,
+                                      max_box_height=img.shape[1]/2,
                                       mask_rec=diag_coord_list,
                                       num_sample=1)
+    curIndex += 1
     if len(new_coords) == 0:
-        print("@@@@")
+        print("Failed to find good box for ", curIndex)
         continue
     else:
         assert len(new_coords) == 1
@@ -85,5 +86,4 @@ while curIndex < len(personIds):
     # cur_mask = np.clip(cur_mask, 0, 1) # in case of overlapping mask
     np.save("{}/{}".format(personMaskDir, personId), newMask)
     io.imsave("{}/{}.jpg".format(personDir, personId), img)
-    print("generating person index ... ", curIndex)
-    curIndex += 1
+    print("generated person index ", curIndex)

@@ -27,7 +27,7 @@ def rejection_sample_rec(im_width,
     invalid_rectangles = mask_rec.copy()
     sampled_rectangles = []
     num_attempts = 0
-    while num_sample > 0 and num_attempts < 1e6:
+    while num_sample > 0 and num_attempts < 100:
         rand_scales = np.random.uniform(size=(2))
         rand_pt = np.array([min(rand_scales[0]*im_width,im_width-max_box_width),
                             max(rand_scales[1]*im_height,max_box_height)])

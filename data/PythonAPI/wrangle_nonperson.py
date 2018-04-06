@@ -43,18 +43,18 @@ while curIndex < len(nonPersonIds):
                                       max_box_height=img.shape[1]/4,
                                       mask_rec=[],
                                       num_sample=1)
+    curIndex += 1
     if len(new_coords) == 0:
-        print("@@@@")
+        print("Failed to find good box for ", curIndex)
         continue
     else:
         assert len(new_coords) == 1
 
     for coord in new_coords[0]:
-        coord[1] = img.shape[1] - coord[1]
+        coord[1] = binMask.shape[1] - coord[1]
 
     newMask = get_mask_from_diagonal_coord(new_coords[0][0], new_coords[0][1], img)
 
     io.imsave("{}/{}.jpg".format(nonPersonDir, nonPersonId), img) # Save this image
     np.save("{}/{}".format(nonPersonMaskDir, nonPersonId), newMask)
-    print("generating nonperson index ... ", curIndex)
-    curIndex += 1
+    print("generated nonperson index ... ", curIndex)
