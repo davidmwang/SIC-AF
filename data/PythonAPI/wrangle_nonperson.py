@@ -38,9 +38,9 @@ while curIndex < len(nonPersonIds):
     new_coords = rejection_sample_rec(im_width=img.shape[0],
                                       im_height=img.shape[1],
                                       min_box_width=img.shape[0]/10,
-                                      max_box_width=img.shape[0]/4,
+                                      max_box_width=img.shape[0]/2,
                                       min_box_height=img.shape[1]/10,
-                                      max_box_height=img.shape[1]/4,
+                                      max_box_height=img.shape[1]/2,
                                       mask_rec=[],
                                       num_sample=1)
     curIndex += 1
@@ -51,7 +51,7 @@ while curIndex < len(nonPersonIds):
         assert len(new_coords) == 1
 
     for coord in new_coords[0]:
-        coord[1] = binMask.shape[1] - coord[1]
+        coord[1] = img.shape[1] - coord[1]
 
     newMask = get_mask_from_diagonal_coord(new_coords[0][0], new_coords[0][1], img)
 

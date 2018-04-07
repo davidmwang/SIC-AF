@@ -38,6 +38,7 @@ else:
 
 signal.signal(signal.SIGINT, lambda signum, frame: save_progress(curIndex))
 
+# curIndex = 14417
 print("Blacking out images...starting at index {}".format(curIndex))
 
 while curIndex < len(personIds):
