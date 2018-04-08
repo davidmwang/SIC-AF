@@ -83,6 +83,7 @@ while curIndex < len(personIds):
         coord[1] = binMask.shape[1] - coord[1]
 
     newMask = get_mask_from_diagonal_coord(new_coords[0][0], new_coords[0][1], binMask)
+    assert newMask.dtype == np.dtype('bool')
 
     # cur_mask = np.clip(cur_mask, 0, 1) # in case of overlapping mask
     np.save("/cs280/home/ubuntu/{}/{}".format(personMaskDir, personId), newMask)
