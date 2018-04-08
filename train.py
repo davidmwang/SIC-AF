@@ -27,10 +27,10 @@ from wgan_gp import resnet_generator, resnet_discriminator
 IMAGE_DIRS = ["/cs280/home/ubuntu/person", "/cs280/home/ubuntu/no_people"]
 
 # Directory containing masks for associated MSCOCO images to use for training
-MASKS_DIR = ["/cs280/home/ubuntu/person_mask", "/cs280/home/ubuntu/no_people_mask"]
+MASK_DIRS = ["/cs280/home/ubuntu/person_mask", "/cs280/home/ubuntu/no_people_mask"]
 
 
-if len(IMAGE_DIRS) == 0 or len(MASKS_DIR) == 0:
+if len(IMAGE_DIRS) == 0 or len(MASK_DIRS) == 0:
     raise Exception('Please specify paths to directories containing images and/or masks.')
 
 MODE = 'wgan-gp' # dcgan, wgan, wgan-gp, lsgan
@@ -71,7 +71,9 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     for device_index, (device, real_data_conv) in enumerate(zip(DEVICES, split_real_data_conv)):
         with tf.device(device):
 
-            real_data = tf.reshape(2*((tf.cast(real_data_conv, tf.float32)/255.)-.5), [int(BATCH_SIZE/len(DEVICES)), OUTPUT_DIM])
+            # real_data = tf.reshape(2*((tf.cast(real_data_conv, tf.float32)/255.)-.5), [int(BATCH_SIZE/len(DEVICES)), OUTPUT_DIM])
+            real_data = 2*((tf.cast(real_data_conv, tf.float32)/255.)-.5)
+
             fake_data = Generator(tf.multiply(real_data, 1-all_real_data_mask))
             blended_fake_data = tf.multiply(fake_data, all_real_data_mask) + tf.multiply(real_data, 1-all_real_data_mask)
 
@@ -91,7 +93,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 gen_cost += LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
 
                 alpha = tf.random_uniform(
-                    shape=[BATCH_SIZE/len(DEVICES),1],
+                    shape=[int(BATCH_SIZE/len(DEVICES)),1],
                     minval=0.,
                     maxval=1.
                 )
@@ -178,7 +180,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     #     lib.save_images.save_images(samples.reshape((BATCH_SIZE, 3, 64, 64)), 'samples_{}.png'.format(iteration))
 
     # Compute number of epochs needed.
-    num_examples = len(glob.glob(IMAGES_DIR + "/*.jpg"))
+
+    num_examples = sum([len(list(glob.glob(image_dir + "/*.jpg"))) for image_dir in IMAGE_DIRS])
     num_epochs = int(np.ceil(ITERS / num_examples))
 
     def create_image_dataset(image_file_list, num_epochs, batch_size):
@@ -213,6 +216,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
         mask_dataset = mask_dataset.map(lambda item: tuple(tf.py_func(read_npy_file, [item], [tf.float32,])))
         mask_dataset = mask_dataset.repeat(num_epochs).batch(batch_size)
+        return mask_dataset
 
     mask_files = list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))
     mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
@@ -234,7 +238,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     #             yield images
 
     # Save a batch of ground-truth samples
-    
+
     _x = inf_train_gen().next()
     _x_r = session.run(real_data, feed_dict={real_data_conv: _x[:BATCH_SIZE/N_GPUS]})
     _x_r = ((_x_r+1.)*(255.99/2)).astype('int32')

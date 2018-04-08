@@ -25,7 +25,7 @@ import tflib.plot
 #     raise Exception('Please specify path to data directory in gan_64x64.py!')
 
 MODE = 'wgan-gp' # dcgan, wgan, wgan-gp, lsgan
-DIM = 64 # Model dimensionality
+DIM = 3 # Model dimensionality
 CRITIC_ITERS = 5 # How many iterations to train the critic for
 N_GPUS = 1 # Number of GPUs
 BATCH_SIZE = 64 # Batch size. Must be a multiple of N_GPUS
@@ -55,6 +55,26 @@ def Normalize(name, axes, inputs):
         return lib.ops.layernorm.Layernorm(name,[1,2,3],inputs)
     else:
         return lib.ops.batchnorm.Batchnorm(name,axes,inputs,fused=True)
+
+def ConvMeanPool(name, input_dim, output_dim, filter_size, inputs, he_init=True, biases=True):
+    output = lib.ops.conv2d.Conv2D(name, input_dim, output_dim, filter_size, inputs, he_init=he_init, biases=biases)
+    output = tf.add_n([output[:,:,::2,::2], output[:,:,1::2,::2], output[:,:,::2,1::2], output[:,:,1::2,1::2]]) / 4.
+    return output
+
+def MeanPoolConv(name, input_dim, output_dim, filter_size, inputs, he_init=True, biases=True):
+    output = inputs
+    output = tf.add_n([output[:,:,::2,::2], output[:,:,1::2,::2], output[:,:,::2,1::2], output[:,:,1::2,1::2]]) / 4.
+    output = lib.ops.conv2d.Conv2D(name, input_dim, output_dim, filter_size, output, he_init=he_init, biases=biases)
+    return output
+
+def UpsampleConv(name, input_dim, output_dim, filter_size, inputs, he_init=True, biases=True):
+    output = inputs
+    output = tf.concat([output, output, output, output], axis=1)
+    output = tf.transpose(output, [0,2,3,1])
+    output = tf.depth_to_space(output, 2)
+    output = tf.transpose(output, [0,3,1,2])
+    output = lib.ops.conv2d.Conv2D(name, input_dim, output_dim, filter_size, output, he_init=he_init, biases=biases)
+    return output
 
 def ResidualBlock(name, input_dim, output_dim, filter_size, inputs, resample=None, he_init=True):
     """
@@ -108,12 +128,12 @@ def resnet_generator(inputs, noise=None, dim=DIM, nonlinearity=tf.nn.relu):
     output = tf.nn.relu(output)
     output = lib.ops.conv2d.Conv2D('Generator.Output', 1*dim, 3, 3, output)
     output = tf.tanh(output)
-
-    return tf.reshape(output, [-1, OUTPUT_DIM])
+    return output
+    # return tf.reshape(output, [-1, OUTPUT_DIM])
 
 def resnet_discriminator(inputs, dim=DIM):
-    output = tf.reshape(inputs, [-1, 3, 64, 64])
-    output = lib.ops.conv2d.Conv2D('Discriminator.Input', 3, dim, 3, output, he_init=False)
+    # output = tf.reshape(inputs, [-1, 3, 64, 64])
+    output = lib.ops.conv2d.Conv2D('Discriminator.Input', 3, dim, 3, inputs, he_init=False)
 
     output = ResidualBlock('Discriminator.Res1', dim, 2*dim, 3, output, resample='down')
     output = ResidualBlock('Discriminator.Res2', 2*dim, 4*dim, 3, output, resample='down')
@@ -122,5 +142,5 @@ def resnet_discriminator(inputs, dim=DIM):
 
     output = tf.reshape(output, [-1, 4*4*8*dim])
     output = lib.ops.linear.Linear('Discriminator.Output', 4*4*8*dim, 1, output)
-
-    return tf.reshape(output, [-1])
+    return output
+    # return tf.reshape(output, [-1])

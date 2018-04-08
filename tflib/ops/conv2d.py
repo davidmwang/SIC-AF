@@ -30,7 +30,7 @@ def Conv2D(name, input_dim, output_dim, filter_size, inputs, he_init=True, mask_
             mask_type, mask_n_channels = mask_type
 
             mask = np.ones(
-                (filter_size, filter_size, input_dim, output_dim), 
+                (filter_size, filter_size, input_dim, output_dim),
                 dtype='float32'
             )
             center = filter_size // 2
@@ -103,9 +103,15 @@ def Conv2D(name, input_dim, output_dim, filter_size, inputs, he_init=True, mask_
             with tf.name_scope('filter_mask'):
                 filters = filters * mask
 
+        # print(inputs.get_shape())
+        # print(filters.get_shape())
+        # print(stride)
+        # print("input dim", input_dim)
+        # print('output_dim', output_dim)
+
         result = tf.nn.conv2d(
-            input=inputs, 
-            filter=filters, 
+            input=inputs,
+            filter=filters,
             strides=[1, 1, stride, stride],
             padding='SAME',
             data_format='NCHW'
