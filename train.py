@@ -3,6 +3,7 @@ sys.path.append(os.getcwd())
 
 import time
 import functools
+import itertools
 
 import numpy as np
 import tensorflow as tf
@@ -22,13 +23,13 @@ from wgan_gp import resnet_generator, resnet_discriminator
 
 # DATA_DIR = ''
 
-# Directory containing original MSCOCO images.
-IMAGES_DIR = ''
+# List of directories containing original MSCOCO images.
+IMAGE_DIRS = []
 
-# Directory containing masks for associated MSCOCO images to use for training
-MASKS_DIR = ''
+# List of directories containing masks for associated MSCOCO images to use for training.
+MASK_DIRS = []
 
-if len(IMAGES_DIR) == 0 or len(MASKS_DIR) == 0:
+if len(IMAGE_DIRS) == 0 or len(MASKS_DIR) == 0:
     raise Exception('Please specify paths to directories containing images and/or masks.')
 
 MODE = 'wgan-gp' # dcgan, wgan, wgan-gp, lsgan
@@ -171,7 +172,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     num_epochs = int(np.ceil(ITERS / num_examples))
 
     # Create dataset of images.
-    image_filename_dataset = tf.data.Dataset.list_files(IMAGES_DIR)
+    image_files = list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))
+    image_dataset = tf.data.Dataset.from_tensor_slices(image_files)
     image_dataset = image_filename_dataset.map(lambda x: tf.image.decode_jpeg(tf.read_file(x))) # Decoding function returns NHWC format.
     image_dataset = image_dataset.repeat(num_epochs).batch(BATCH_SIZE)
     image_iterator = image_dataset.make_one_shot_iterator()
@@ -181,7 +183,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         data = np.load(item.decode())
         return data.astype(np.float32)
 
-    mask_files = glob.glob(MASKS_DIR + "/*.npy")
+    mask_files = list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))
     mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
     mask_dataset = mask_dataset.map(lambda item: tuple(tf.py_func(read_npy_file, [item], [tf.float32,])))
     mask_dataset = mask_dataset.repeat(num_epochs).batch(BATCH_SIZE)
