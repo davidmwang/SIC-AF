@@ -20,9 +20,9 @@ import tflib.plot
 
 # Download 64x64 ImageNet at http://image-net.org/small/download.php and
 # fill in the path to the extracted files here!
-DATA_DIR = ''
-if len(DATA_DIR) == 0:
-    raise Exception('Please specify path to data directory in gan_64x64.py!')
+# DATA_DIR = ''
+# if len(DATA_DIR) == 0:
+#     raise Exception('Please specify path to data directory in gan_64x64.py!')
 
 MODE = 'wgan-gp' # dcgan, wgan, wgan-gp, lsgan
 DIM = 64 # Model dimensionality
@@ -35,7 +35,7 @@ OUTPUT_DIM = 64*64*3 # Number of pixels in each iamge
 
 lib.print_model_settings(locals().copy())
 
-DEVICES = ['/gpu:{}'.format(i) for i in xrange(N_GPUS)]
+DEVICES = ['/gpu:{}'.format(i) for i in range(N_GPUS)]
 
 def LeakyReLU(x, alpha=0.2):
     return tf.maximum(alpha*x, x)
@@ -124,4 +124,3 @@ def resnet_discriminator(inputs, dim=DIM):
     output = lib.ops.linear.Linear('Discriminator.Output', 4*4*8*dim, 1, output)
 
     return tf.reshape(output, [-1])
-

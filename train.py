@@ -4,7 +4,6 @@ sys.path.append(os.getcwd())
 import time
 import functools
 import itertools
-import random
 
 import numpy as np
 import tensorflow as tf
@@ -25,7 +24,7 @@ from wgan_gp import resnet_generator, resnet_discriminator
 # DATA_DIR = ''
 
 # Directory containing original MSCOCO images.
-IMAGES_DIR = ["/cs280/home/ubuntu/person", "/cs280/home/ubuntu/no_people"]
+IMAGE_DIRS = ["/cs280/home/ubuntu/person", "/cs280/home/ubuntu/no_people"]
 
 # Directory containing masks for associated MSCOCO images to use for training
 MASKS_DIR = ["/cs280/home/ubuntu/person_mask", "/cs280/home/ubuntu/no_people_mask"]
@@ -50,7 +49,7 @@ NUM_VAL_SAMPLES = 20
 
 lib.print_model_settings(locals().copy())
 
-DEVICES = ['/gpu:{}'.format(i) for i in xrange(N_GPUS)]
+DEVICES = ['/gpu:{}'.format(i) for i in range(N_GPUS)]
 
 Generator, Discriminator = resnet_generator, resnet_discriminator
 
@@ -58,7 +57,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     all_real_data_conv = tf.placeholder(tf.int32, shape=[BATCH_SIZE, 3, 64, 64])
     # binary mask placeholder
-    all_real_data_mask = tf.placeholder(tf.int32, shape=[BATCH_SIZE, 3, 64, 64])
+    all_real_data_mask = tf.placeholder(tf.float32, shape=[BATCH_SIZE, 3, 64, 64])
 
     if tf.__version__.startswith('1.'):
         split_real_data_conv = tf.split(all_real_data_conv, len(DEVICES))
@@ -72,7 +71,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     for device_index, (device, real_data_conv) in enumerate(zip(DEVICES, split_real_data_conv)):
         with tf.device(device):
 
-            real_data = tf.reshape(2*((tf.cast(real_data_conv, tf.float32)/255.)-.5), [BATCH_SIZE/len(DEVICES), OUTPUT_DIM])
+            real_data = tf.reshape(2*((tf.cast(real_data_conv, tf.float32)/255.)-.5), [int(BATCH_SIZE/len(DEVICES)), OUTPUT_DIM])
             fake_data = Generator(tf.multiply(real_data, 1-all_real_data_mask))
             blended_fake_data = tf.multiply(fake_data, all_real_data_mask) + tf.multiply(real_data, 1-all_real_data_mask)
 
@@ -173,22 +172,14 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     #     all_fixed_noise_samples = tf.concat(all_fixed_noise_samples, axis=0)
     # else:
     #     all_fixed_noise_samples = tf.concat(0, all_fixed_noise_samples)
+    # def generate_image(iteration):
+    #     samples = session.run(all_fixed_noise_samples)
+    #     samples = ((samples+1.)*(255.99/2)).astype('int32')
+    #     lib.save_images.save_images(samples.reshape((BATCH_SIZE, 3, 64, 64)), 'samples_{}.png'.format(iteration))
 
     # Compute number of epochs needed.
     num_examples = len(glob.glob(IMAGES_DIR + "/*.jpg"))
     num_epochs = int(np.ceil(ITERS / num_examples))
-
-    # Get lists of filenames.
-    image_files = list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))
-    mask_files = list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))
-    
-    # Shuffle.
-    combined = list(zip(image_files, mask_files))
-    random.shuffle(combined)
-    image_files[:], mask_files[:] = zip(*combined)
-
-    image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
-    mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
 
     def create_image_dataset(image_file_list, num_epochs, batch_size):
         image_dataset = tf.data.Dataset.from_tensor_slices(image_file_list)
@@ -198,12 +189,16 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         return image_dataset
 
     # Create image datasets (training and val).
+    image_files = list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))
+    image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
+
     image_dataset = create_image_dataset(image_files, num_epochs, BATCH_SIZE)
     image_iterator = image_dataset.make_one_shot_iterator()
 
     image_val_dataset = create_image_dataset(image_val_files, 1, NUM_VAL_SAMPLES)
     image_val_iterator = image_val_dataset.make_one_shot_iterator()
     image_val_batch = image_val_iterator.get_next() # Fixed image batch to use for validation.
+
 
     # Create corresponding dataset of masks (https://stackoverflow.com/questions/48889482/feeding-npy-numpy-files-into-tensorflow-data-pipeline).
 
@@ -215,9 +210,12 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             data = imresize(data, (64, 64))
             return data.astype(np.float32)
 
-        mask_dataset = tf.data.Dataset.from_tensor_slices(mask_file_list)
+        mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
         mask_dataset = mask_dataset.map(lambda item: tuple(tf.py_func(read_npy_file, [item], [tf.float32,])))
         mask_dataset = mask_dataset.repeat(num_epochs).batch(batch_size)
+
+    mask_files = list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))
+    mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
 
     mask_dataset = create_mask_dataset(mask_files, num_epochs, BATCH_SIZE)
 
@@ -226,12 +224,6 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
     mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
     mask_val_batch = mask_val_dataset.get_next()    # Fixed mask batch to use for validation.
-
-    def generate_val_images(iteration):
-        samples = session.run(blended_fake_data, feed_dict={all_real_data_conv: image_val_batch,
-                                                            all_real_data_mask: mask_val_batch})
-        samples = ((samples+1.)*(255.99/2)).astype('int32')
-        lib.save_images.save_images(samples.reshape((BATCH_SIZE, 3, 64, 64)), 'samples_{}.png'.format(iteration))
 
     # # Dataset iterator
     # train_gen, dev_gen = lib.small_imagenet.load(BATCH_SIZE, data_dir=DATA_DIR)
@@ -242,10 +234,10 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     #             yield images
 
     # Save a batch of ground-truth samples
-    # _x = inf_train_gen().next()
-    # _x_r = session.run(real_data, feed_dict={real_data_conv: _x[:BATCH_SIZE/N_GPUS]})
-    # _x_r = ((_x_r+1.)*(255.99/2)).astype('int32')
-    # lib.save_images.save_images(_x_r.reshape((BATCH_SIZE/N_GPUS, 3, 64, 64)), 'samples_groundtruth.png')
+    _x = inf_train_gen().next()
+    _x_r = session.run(real_data, feed_dict={real_data_conv: _x[:BATCH_SIZE/N_GPUS]})
+    _x_r = ((_x_r+1.)*(255.99/2)).astype('int32')
+    lib.save_images.save_images(_x_r.reshape((BATCH_SIZE/N_GPUS, 3, 64, 64)), 'samples_groundtruth.png')
 
     # Train loop
     session.run(tf.initialize_all_variables())
@@ -293,7 +285,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 dev_disc_costs.append(_dev_disc_cost)
             lib.plot.plot('dev disc cost', np.mean(dev_disc_costs))
 
-            generate_val_images(iteration)
+            generate_image(iteration)
 
         if (iteration < 5) or (iteration % 200 == 199):
             lib.plot.flush()
