@@ -228,7 +228,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     mask_val_batch = mask_val_dataset.get_next()    # Fixed mask batch to use for validation.
 
     def generate_val_images(iteration):
-        samples = session.run(all_fixed_noise_samples)
+        samples = session.run(blended_fake_data, feed_dict={all_real_data_conv: image_val_batch,
+                                                            all_real_data_mask: mask_val_batch})
         samples = ((samples+1.)*(255.99/2)).astype('int32')
         lib.save_images.save_images(samples.reshape((BATCH_SIZE, 3, 64, 64)), 'samples_{}.png'.format(iteration))
 
@@ -241,10 +242,10 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     #             yield images
 
     # Save a batch of ground-truth samples
-    _x = inf_train_gen().next()
-    _x_r = session.run(real_data, feed_dict={real_data_conv: _x[:BATCH_SIZE/N_GPUS]})
-    _x_r = ((_x_r+1.)*(255.99/2)).astype('int32')
-    lib.save_images.save_images(_x_r.reshape((BATCH_SIZE/N_GPUS, 3, 64, 64)), 'samples_groundtruth.png')
+    # _x = inf_train_gen().next()
+    # _x_r = session.run(real_data, feed_dict={real_data_conv: _x[:BATCH_SIZE/N_GPUS]})
+    # _x_r = ((_x_r+1.)*(255.99/2)).astype('int32')
+    # lib.save_images.save_images(_x_r.reshape((BATCH_SIZE/N_GPUS, 3, 64, 64)), 'samples_groundtruth.png')
 
     # Train loop
     session.run(tf.initialize_all_variables())
@@ -292,7 +293,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 dev_disc_costs.append(_dev_disc_cost)
             lib.plot.plot('dev disc cost', np.mean(dev_disc_costs))
 
-            generate_image(iteration)
+            generate_val_images(iteration)
 
         if (iteration < 5) or (iteration % 200 == 199):
             lib.plot.flush()
