@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, glob
 sys.path.append(os.getcwd())
 
 import time
@@ -20,9 +20,16 @@ import tflib.plot
 
 from wgan_gp import resnet_generator, resnet_discriminator
 
-DATA_DIR = ''
-if len(DATA_DIR) == 0:
-    raise Exception('Please specify path to data directory in gan_64x64.py!')
+# DATA_DIR = ''
+
+# Directory containing original MSCOCO images.
+IMAGES_DIR = ''
+
+# Directory containing masks for associated MSCOCO images to use for training
+MASKS_DIR = ''
+
+if len(IMAGES_DIR) == 0 or len(MASKS_DIR) == 0:
+    raise Exception('Please specify paths to directories containing images and/or masks.')
 
 MODE = 'wgan-gp' # dcgan, wgan, wgan-gp, lsgan
 DIM = 64 # Model dimensionality
@@ -152,21 +159,40 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     #     samples = ((samples+1.)*(255.99/2)).astype('int32')
     #     lib.save_images.save_images(samples.reshape((BATCH_SIZE, 3, 64, 64)), 'samples_{}.png'.format(iteration))
 
+    # Compute number of epochs needed.
+    num_examples = len(glob.glob(IMAGES_DIR + "/*.jpg"))
+    num_epochs = int(np.ceil(ITERS / num_examples))
 
-    # Dataset iterator
-    train_gen, dev_gen = lib.small_imagenet.load(BATCH_SIZE, data_dir=DATA_DIR)
+    # Create dataset of images.
+    image_filename_dataset = tf.data.Dataset.list_files(IMAGES_DIR)
+    image_dataset = image_filename_dataset.map(lambda x: tf.image.decode_jpeg(tf.read_file(x))) # Decoding function returns NHWC format.
+    image_dataset = image_dataset.repeat(num_epochs).batch(BATCH_SIZE)
+    image_iterator = image_dataset.make_one_shot_iterator()
 
-    def inf_train_gen():
-        while True:
-            for (images,) in train_gen():
-                yield images
+    # Create corresponding dataset of masks (https://stackoverflow.com/questions/48889482/feeding-npy-numpy-files-into-tensorflow-data-pipeline).
+    def read_npy_file(item):
+        data = np.load(item.decode())
+        return data.astype(np.float32)
+
+    mask_files = glob.glob(MASKS_DIR + "/*.npy")
+    mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
+    mask_dataset = mask_dataset.map(lambda item: tuple(tf.py_func(read_npy_file, [item], [tf.float32,])))
+    mask_dataset = mask_dataset.repeat(num_epochs).batch(BATCH_SIZE)
+    mask_iterator = mask_dataset.make_one_shot_iterator()
+
+    # # Dataset iterator
+    # train_gen, dev_gen = lib.small_imagenet.load(BATCH_SIZE, data_dir=DATA_DIR)
+
+    # def inf_train_gen():
+    #     while True:
+    #         for (images,) in train_gen():
+    #             yield images
 
     # Save a batch of ground-truth samples
     _x = inf_train_gen().next()
     _x_r = session.run(real_data, feed_dict={real_data_conv: _x[:BATCH_SIZE/N_GPUS]})
     _x_r = ((_x_r+1.)*(255.99/2)).astype('int32')
     lib.save_images.save_images(_x_r.reshape((BATCH_SIZE/N_GPUS, 3, 64, 64)), 'samples_groundtruth.png')
-
 
     # Train loop
     session.run(tf.initialize_all_variables())
@@ -177,6 +203,11 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
         # Train generator
         if iteration > 0:
+            image_batch = image_iterator.get_next()
+            mask_batch = mask_iterator.get_next()
+            masked_images = image_batch * mask_batch
+
+            # TODO: Generator needs to take in masked images.
             _ = session.run(gen_train_op)
 
         # Train critic
@@ -185,7 +216,13 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         else:
             disc_iters = CRITIC_ITERS
         for i in xrange(disc_iters):
-            _data = gen.next()
+            # _data = gen.next()
+
+            image_batch = image_iterator.get_next()
+            mask_batch = mask_iterator.get_next()
+            masked_images = image_batch * mask_batch
+
+            # TODO: Need to run masked images through the generator and feed both the real images and reconstructed images to discriminator.
             _disc_cost, _ = session.run([disc_cost, disc_train_op], feed_dict={all_real_data_conv: _data})
             if MODE == 'wgan':
                 _ = session.run([clip_disc_weights])
