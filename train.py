@@ -234,6 +234,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     #             yield images
 
     # Save a batch of ground-truth samples
+    
     _x = inf_train_gen().next()
     _x_r = session.run(real_data, feed_dict={real_data_conv: _x[:BATCH_SIZE/N_GPUS]})
     _x_r = ((_x_r+1.)*(255.99/2)).astype('int32')
