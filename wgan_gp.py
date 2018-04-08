@@ -56,46 +56,6 @@ def Normalize(name, axes, inputs):
     else:
         return lib.ops.batchnorm.Batchnorm(name,axes,inputs,fused=True)
 
-def BottleneckResidualBlock(name, input_dim, output_dim, filter_size, inputs, resample=None, he_init=True):
-    """
-    resample: None, 'down', or 'up'
-    """
-    if resample=='down':
-        conv_shortcut = functools.partial(lib.ops.conv2d.Conv2D, stride=2)
-        conv_1        = functools.partial(lib.ops.conv2d.Conv2D, input_dim=input_dim, output_dim=input_dim/2)
-        conv_1b       = functools.partial(lib.ops.conv2d.Conv2D, input_dim=input_dim/2, output_dim=output_dim/2, stride=2)
-        conv_2        = functools.partial(lib.ops.conv2d.Conv2D, input_dim=output_dim/2, output_dim=output_dim)
-    elif resample=='up':
-        conv_shortcut = SubpixelConv2D
-        conv_1        = functools.partial(lib.ops.conv2d.Conv2D, input_dim=input_dim, output_dim=input_dim/2)
-        conv_1b       = functools.partial(lib.ops.deconv2d.Deconv2D, input_dim=input_dim/2, output_dim=output_dim/2)
-        conv_2        = functools.partial(lib.ops.conv2d.Conv2D, input_dim=output_dim/2, output_dim=output_dim)
-    elif resample==None:
-        conv_shortcut = lib.ops.conv2d.Conv2D
-        conv_1        = functools.partial(lib.ops.conv2d.Conv2D, input_dim=input_dim,  output_dim=input_dim/2)
-        conv_1b       = functools.partial(lib.ops.conv2d.Conv2D, input_dim=input_dim/2,  output_dim=output_dim/2)
-        conv_2        = functools.partial(lib.ops.conv2d.Conv2D, input_dim=input_dim/2, output_dim=output_dim)
-
-    else:
-        raise Exception('invalid resample value')
-
-    if output_dim==input_dim and resample==None:
-        shortcut = inputs # Identity skip-connection
-    else:
-        shortcut = conv_shortcut(name+'.Shortcut', input_dim=input_dim, output_dim=output_dim, filter_size=1,
-                                 he_init=False, biases=True, inputs=inputs)
-
-    output = inputs
-    output = tf.nn.relu(output)
-    output = conv_1(name+'.Conv1', filter_size=1, inputs=output, he_init=he_init)
-    output = tf.nn.relu(output)
-    output = conv_1b(name+'.Conv1B', filter_size=filter_size, inputs=output, he_init=he_init)
-    output = tf.nn.relu(output)
-    output = conv_2(name+'.Conv2', filter_size=1, inputs=output, he_init=he_init, biases=False)
-    output = Normalize(name+'.BN', [0,2,3], output)
-
-    return shortcut + (0.3*output)
-
 def ResidualBlock(name, input_dim, output_dim, filter_size, inputs, resample=None, he_init=True):
     """
     resample: None, 'down', or 'up'
@@ -131,9 +91,9 @@ def ResidualBlock(name, input_dim, output_dim, filter_size, inputs, resample=Non
 
     return shortcut + output
 
-def resnet_generator(n_samples, inputs, noise=None, dim=DIM, nonlinearity=tf.nn.relu):
-    if noise is None:
-        noise = tf.random_normal([n_samples, 128])
+def resnet_generator(inputs, noise=None, dim=DIM, nonlinearity=tf.nn.relu):
+    # if noise is None:
+    #     noise = tf.random_normal([n_samples, 128])
 
     # output = lib.ops.linear.Linear('Generator.Input', 128, 4*4*8*dim, noise)
     # output = tf.reshape(output, [-1, 8*dim, 4, 4])

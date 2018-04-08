@@ -49,20 +49,27 @@ Generator, Discriminator = resnet_generator, resnet_discriminator
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     all_real_data_conv = tf.placeholder(tf.int32, shape=[BATCH_SIZE, 3, 64, 64])
+    # binary mask placeholder
+    all_real_data_mask = tf.placeholder(tf.int32, shape=[BATCH_SIZE, 3, 64, 64])
+
     if tf.__version__.startswith('1.'):
         split_real_data_conv = tf.split(all_real_data_conv, len(DEVICES))
+        split_real_data_mask = tf.split(all_real_data_mask, len(DEVICES))
     else:
         split_real_data_conv = tf.split(0, len(DEVICES), all_real_data_conv)
+        split_real_data_mask = tf.split(0, len(DEVICES), all_real_data_mask)
+
     gen_costs, disc_costs = [],[]
 
     for device_index, (device, real_data_conv) in enumerate(zip(DEVICES, split_real_data_conv)):
         with tf.device(device):
 
             real_data = tf.reshape(2*((tf.cast(real_data_conv, tf.float32)/255.)-.5), [BATCH_SIZE/len(DEVICES), OUTPUT_DIM])
-            fake_data = Generator(BATCH_SIZE/len(DEVICES))
+            fake_data = Generator(tf.multiply(real_data, 1-all_real_data_mask))
+            blended_fake_data = tf.multiply(fake_data, all_real_data_mask) + tf.multiply(real_data, 1-all_real_data_mask)
 
             disc_real = Discriminator(real_data)
-            disc_fake = Discriminator(fake_data)
+            disc_fake = Discriminator(blended_fake_data)
 
             if MODE == 'wgan':
                 gen_cost = -tf.reduce_mean(disc_fake)
@@ -77,7 +84,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                     minval=0.,
                     maxval=1.
                 )
-                differences = fake_data - real_data
+                differences = blended_fake_data - real_data
                 interpolates = real_data + (alpha*differences)
                 gradients = tf.gradients(Discriminator(interpolates), [interpolates])[0]
                 slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
@@ -205,10 +212,10 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         if iteration > 0:
             image_batch = image_iterator.get_next()
             mask_batch = mask_iterator.get_next()
-            masked_images = image_batch * mask_batch
 
             # TODO: Generator needs to take in masked images.
-            _ = session.run(gen_train_op)
+            _ = session.run(gen_train_op, feed_dict={all_real_data_conv: image_batch,
+                                                     all_real_data_mask: mask_batch})
 
         # Train critic
         if (MODE == 'dcgan') or (MODE == 'lsgan'):
@@ -220,10 +227,12 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
             image_batch = image_iterator.get_next()
             mask_batch = mask_iterator.get_next()
-            masked_images = image_batch * mask_batch
+            # masked_images = image_batch * mask_batch
 
             # TODO: Need to run masked images through the generator and feed both the real images and reconstructed images to discriminator.
-            _disc_cost, _ = session.run([disc_cost, disc_train_op], feed_dict={all_real_data_conv: _data})
+            _disc_cost, _ = session.run([disc_cost, disc_train_op], 
+                                        feed_dict={all_real_data_conv: image_batch,
+                                                   all_real_data_mask: mask_batch})
             if MODE == 'wgan':
                 _ = session.run([clip_disc_weights])
 
