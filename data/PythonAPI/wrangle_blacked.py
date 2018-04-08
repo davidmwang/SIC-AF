@@ -38,7 +38,7 @@ else:
 
 signal.signal(signal.SIGINT, lambda signum, frame: save_progress(curIndex))
 
-# curIndex = 14417
+
 print("Blacking out images...starting at index {}".format(curIndex))
 
 while curIndex < len(personIds):
@@ -86,6 +86,6 @@ while curIndex < len(personIds):
     assert newMask.dtype == np.dtype('bool')
 
     # cur_mask = np.clip(cur_mask, 0, 1) # in case of overlapping mask
-    np.save("/cs280/home/ubuntu/{}/{}".format(personMaskDir, personId), newMask)
-    io.imsave("/cs280/home/ubuntu/{}/{}.jpg".format(personDir, personId), img)
+    np.save("{}/{}".format(personMaskDir, personId), newMask)
+    io.imsave("{}/{}.jpg".format(personDir, personId), img)
     print("generated person index ", curIndex)

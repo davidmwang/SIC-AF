@@ -54,6 +54,7 @@ while curIndex < len(nonPersonIds):
         coord[1] = img.shape[1] - coord[1]
 
     newMask = get_mask_from_diagonal_coord(new_coords[0][0], new_coords[0][1], img)
+    assert newMask.dtype == np.dtype('bool')
 
     io.imsave("{}/{}.jpg".format(nonPersonDir, nonPersonId), img) # Save this image
     np.save("{}/{}".format(nonPersonMaskDir, nonPersonId), newMask)
