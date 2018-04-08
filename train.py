@@ -245,7 +245,9 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     # _x = inf_train_gen().next()
     # _x_r = session.run(real_data, feed_dict={real_data_conv: _x[:BATCH_SIZE/N_GPUS]})
     # _x_r = ((_x_r+1.)*(255.99/2)).astype('int32')
-    # lib.save_images.save_images(_x_r.reshape((BATCH_SIZE/N_GPUS, 3, 64, 64)), 'samples_groundtruth.png')
+
+    # Save a batch of ground-truth samples
+    lib.save_images.save_images(image_val_batch.reshape((NUM_VAL_SAMPLES, 3, 64, 64)), 'samples_groundtruth.png')
 
     # Train loop
     session.run(tf.initialize_all_variables())
