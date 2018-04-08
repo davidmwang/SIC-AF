@@ -41,6 +41,9 @@ ITERS = 200000 # How many iterations to train for
 LAMBDA = 10 # Gradient penalty lambda hyperparameter
 OUTPUT_DIM = 64*64*3 # Number of pixels in each iamge
 
+# Number of samples to put aside for validation.
+NUM_VAL_SAMPLES = 20
+
 lib.print_model_settings(locals().copy())
 
 DEVICES = ['/gpu:{}'.format(i) for i in xrange(N_GPUS)]
@@ -171,23 +174,46 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     num_examples = len(glob.glob(IMAGES_DIR + "/*.jpg"))
     num_epochs = int(np.ceil(ITERS / num_examples))
 
-    # Create dataset of images.
+    def create_image_dataset(image_file_list, num_epochs, batch_size):
+        image_dataset = tf.data.Dataset.from_tensor_slices(image_file_list)
+        image_dataset = image_dataset.map(lambda x: tf.image.decode_jpeg(tf.read_file(x))) # Decoding function returns NHWC format.
+        image_dataset = image_dataset.repeat(num_epochs).batch(batch_size)
+
+        return image_dataset
+
+    # Create image datasets (training and val).
     image_files = list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))
-    image_dataset = tf.data.Dataset.from_tensor_slices(image_files)
-    image_dataset = image_filename_dataset.map(lambda x: tf.image.decode_jpeg(tf.read_file(x))) # Decoding function returns NHWC format.
-    image_dataset = image_dataset.repeat(num_epochs).batch(BATCH_SIZE)
+    image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
+    
+    image_dataset = create_image_dataset(image_files, num_epochs, BATCH_SIZE)
     image_iterator = image_dataset.make_one_shot_iterator()
 
+    image_val_dataset = create_image_dataset(image_val_files, 1, NUM_VAL_SAMPLES)
+    image_val_iterator = image_val_dataset.make_one_shot_iterator()
+    image_val_batch = image_val_iterator.get_next() # Fixed image batch to use for validation.
+
+
     # Create corresponding dataset of masks (https://stackoverflow.com/questions/48889482/feeding-npy-numpy-files-into-tensorflow-data-pipeline).
-    def read_npy_file(item):
-        data = np.load(item.decode())
-        return data.astype(np.float32)
+    def create_mask_dataset(mask_file_list, num_epochs, batch_size):
+
+        # Processing function for reading in a NumPy file.
+        def read_npy_file(item):
+            data = np.load(item.decode())
+            return data.astype(np.float32)
+
+        mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
+        mask_dataset = mask_dataset.map(lambda item: tuple(tf.py_func(read_npy_file, [item], [tf.float32,])))
+        mask_dataset = mask_dataset.repeat(num_epochs).batch(batch_size)
 
     mask_files = list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))
-    mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
-    mask_dataset = mask_dataset.map(lambda item: tuple(tf.py_func(read_npy_file, [item], [tf.float32,])))
-    mask_dataset = mask_dataset.repeat(num_epochs).batch(BATCH_SIZE)
+    mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
+
+    mask_dataset = create_mask_dataset(mask_files, num_epochs, BATCH_SIZE)
     mask_iterator = mask_dataset.make_one_shot_iterator()
+
+    mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
+    mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
+    mask_val_batch = mask_val_dataset.get_next()    # Fixed mask batch to use for validation.
 
     # # Dataset iterator
     # train_gen, dev_gen = lib.small_imagenet.load(BATCH_SIZE, data_dir=DATA_DIR)
