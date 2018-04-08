@@ -19,16 +19,17 @@ import tflib.save_images
 import tflib.small_imagenet
 import tflib.ops.layernorm
 import tflib.plot
-
+from scipy.misc import imresize
 from wgan_gp import resnet_generator, resnet_discriminator
 
 # DATA_DIR = ''
 
-# List of directories containing original MSCOCO images.
-IMAGE_DIRS = []
+# Directory containing original MSCOCO images.
+IMAGES_DIR = ["/cs280/home/ubuntu/person", "/cs280/home/ubuntu/no_people"]
 
-# List of directories containing masks for associated MSCOCO images to use for training.
-MASK_DIRS = []
+# Directory containing masks for associated MSCOCO images to use for training
+MASKS_DIR = ["/cs280/home/ubuntu/person_mask", "/cs280/home/ubuntu/no_people_mask"]
+
 
 if len(IMAGE_DIRS) == 0 or len(MASKS_DIR) == 0:
     raise Exception('Please specify paths to directories containing images and/or masks.')
@@ -91,7 +92,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 gen_cost += LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
 
                 alpha = tf.random_uniform(
-                    shape=[BATCH_SIZE/len(DEVICES),1], 
+                    shape=[BATCH_SIZE/len(DEVICES),1],
                     minval=0.,
                     maxval=1.
                 )
@@ -109,11 +110,11 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                     disc_cost =  tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=disc_fake,
                                                                                         labels=tf.zeros_like(disc_fake)))
                     disc_cost += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=disc_real,
-                                                                                        labels=tf.ones_like(disc_real)))                    
+                                                                                        labels=tf.ones_like(disc_real)))
                 except Exception as e:
                     gen_cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(disc_fake, tf.ones_like(disc_fake)))
                     disc_cost =  tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(disc_fake, tf.zeros_like(disc_fake)))
-                    disc_cost += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(disc_real, tf.ones_like(disc_real)))                    
+                    disc_cost += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(disc_real, tf.ones_like(disc_real)))
                 disc_cost /= 2.
 
             elif MODE == 'lsgan':
@@ -177,13 +178,6 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     num_examples = len(glob.glob(IMAGES_DIR + "/*.jpg"))
     num_epochs = int(np.ceil(ITERS / num_examples))
 
-    def create_image_dataset(image_file_list, num_epochs, batch_size):
-        image_dataset = tf.data.Dataset.from_tensor_slices(image_file_list)
-        image_dataset = image_dataset.map(lambda x: tf.image.decode_jpeg(tf.read_file(x))) # Decoding function returns NHWC format.
-        image_dataset = image_dataset.repeat(num_epochs).batch(batch_size)
-
-        return image_dataset
-
     # Get lists of filenames.
     image_files = list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))
     mask_files = list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))
@@ -196,6 +190,13 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
     mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
 
+    def create_image_dataset(image_file_list, num_epochs, batch_size):
+        image_dataset = tf.data.Dataset.from_tensor_slices(image_file_list)
+        image_dataset = image_dataset.map(lambda x: tf.image.resize_images(tf.image.decode_jpeg(tf.read_file(x)), size=(64, 64))) # Decoding function returns NHWC format.
+        image_dataset = image_dataset.repeat(num_epochs).batch(batch_size)
+
+        return image_dataset
+
     # Create image datasets (training and val).
     image_dataset = create_image_dataset(image_files, num_epochs, BATCH_SIZE)
     image_iterator = image_dataset.make_one_shot_iterator()
@@ -204,13 +205,14 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     image_val_iterator = image_val_dataset.make_one_shot_iterator()
     image_val_batch = image_val_iterator.get_next() # Fixed image batch to use for validation.
 
-
     # Create corresponding dataset of masks (https://stackoverflow.com/questions/48889482/feeding-npy-numpy-files-into-tensorflow-data-pipeline).
+
     def create_mask_dataset(mask_file_list, num_epochs, batch_size):
 
         # Processing function for reading in a NumPy file.
         def read_npy_file(item):
             data = np.load(item.decode())
+            data = imresize(data, (64, 64))
             return data.astype(np.float32)
 
         mask_dataset = tf.data.Dataset.from_tensor_slices(mask_file_list)
@@ -218,6 +220,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         mask_dataset = mask_dataset.repeat(num_epochs).batch(batch_size)
 
     mask_dataset = create_mask_dataset(mask_files, num_epochs, BATCH_SIZE)
+
     mask_iterator = mask_dataset.make_one_shot_iterator()
 
     mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
@@ -272,7 +275,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             # masked_images = image_batch * mask_batch
 
             # TODO: Need to run masked images through the generator and feed both the real images and reconstructed images to discriminator.
-            _disc_cost, _ = session.run([disc_cost, disc_train_op], 
+            _disc_cost, _ = session.run([disc_cost, disc_train_op],
                                         feed_dict={all_real_data_conv: image_batch,
                                                    all_real_data_mask: mask_batch})
             if MODE == 'wgan':
@@ -285,7 +288,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             t = time.time()
             dev_disc_costs = []
             for (images,) in dev_gen():
-                _dev_disc_cost = session.run(disc_cost, feed_dict={all_real_data_conv: images}) 
+                _dev_disc_cost = session.run(disc_cost, feed_dict={all_real_data_conv: images})
                 dev_disc_costs.append(_dev_disc_cost)
             lib.plot.plot('dev disc cost', np.mean(dev_disc_costs))
 
