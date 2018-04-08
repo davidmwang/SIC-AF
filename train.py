@@ -4,6 +4,7 @@ sys.path.append(os.getcwd())
 import time
 import functools
 import itertools
+import random
 
 import numpy as np
 import tensorflow as tf
@@ -171,10 +172,6 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     #     all_fixed_noise_samples = tf.concat(all_fixed_noise_samples, axis=0)
     # else:
     #     all_fixed_noise_samples = tf.concat(0, all_fixed_noise_samples)
-    # def generate_image(iteration):
-    #     samples = session.run(all_fixed_noise_samples)
-    #     samples = ((samples+1.)*(255.99/2)).astype('int32')
-    #     lib.save_images.save_images(samples.reshape((BATCH_SIZE, 3, 64, 64)), 'samples_{}.png'.format(iteration))
 
     # Compute number of epochs needed.
     num_examples = len(glob.glob(IMAGES_DIR + "/*.jpg"))
@@ -187,10 +184,19 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
         return image_dataset
 
-    # Create image datasets (training and val).
+    # Get lists of filenames.
     image_files = list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))
-    image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
+    mask_files = list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))
     
+    # Shuffle.
+    combined = list(zip(image_files, mask_files))
+    random.shuffle(combined)
+    image_files[:], mask_files[:] = zip(*combined)
+
+    image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
+    mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
+
+    # Create image datasets (training and val).
     image_dataset = create_image_dataset(image_files, num_epochs, BATCH_SIZE)
     image_iterator = image_dataset.make_one_shot_iterator()
 
@@ -211,15 +217,17 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         mask_dataset = mask_dataset.map(lambda item: tuple(tf.py_func(read_npy_file, [item], [tf.float32,])))
         mask_dataset = mask_dataset.repeat(num_epochs).batch(batch_size)
 
-    mask_files = list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))
-    mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
-
     mask_dataset = create_mask_dataset(mask_files, num_epochs, BATCH_SIZE)
     mask_iterator = mask_dataset.make_one_shot_iterator()
 
     mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
     mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
     mask_val_batch = mask_val_dataset.get_next()    # Fixed mask batch to use for validation.
+
+    def generate_val_images(iteration):
+        samples = session.run(all_fixed_noise_samples)
+        samples = ((samples+1.)*(255.99/2)).astype('int32')
+        lib.save_images.save_images(samples.reshape((BATCH_SIZE, 3, 64, 64)), 'samples_{}.png'.format(iteration))
 
     # # Dataset iterator
     # train_gen, dev_gen = lib.small_imagenet.load(BATCH_SIZE, data_dir=DATA_DIR)
