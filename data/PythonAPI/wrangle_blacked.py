@@ -85,6 +85,6 @@ while curIndex < len(personIds):
     newMask = get_mask_from_diagonal_coord(new_coords[0][0], new_coords[0][1], binMask)
 
     # cur_mask = np.clip(cur_mask, 0, 1) # in case of overlapping mask
-    np.save("{}/{}".format(personMaskDir, personId), newMask)
-    io.imsave("{}/{}.jpg".format(personDir, personId), img)
+    np.save("/cs280/home/ubuntu/{}/{}".format(personMaskDir, personId), newMask)
+    io.imsave("/cs280/home/ubuntu/{}/{}.jpg".format(personDir, personId), img)
     print("generated person index ", curIndex)

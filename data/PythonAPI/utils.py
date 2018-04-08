@@ -103,6 +103,6 @@ def get_mask_from_diagonal_coord(top_left, bottom_right, img):
 
     newMask = np.logical_and(rows >= top_left[0], rows <= bottom_right[0])
     newMask = np.logical_and(newMask, cols >= top_left[1])
-    newMask = np.logical_and(newMask, cols <= bottom_right[1]).astype(int)
+    newMask = np.logical_and(newMask, cols <= bottom_right[1])
 
     return newMask
