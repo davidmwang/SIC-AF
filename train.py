@@ -207,7 +207,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             data = np.load(item.decode())
             return data.astype(np.float32)
 
-        mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
+        mask_dataset = tf.data.Dataset.from_tensor_slices(mask_file_list)
         mask_dataset = mask_dataset.map(lambda item: tuple(tf.py_func(read_npy_file, [item], [tf.float32,])))
         mask_dataset = mask_dataset.repeat(num_epochs).batch(batch_size)
 
