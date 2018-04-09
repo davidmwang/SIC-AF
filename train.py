@@ -45,7 +45,8 @@ LAMBDA_ADV = 0.05
 OUTPUT_DIM = 64*64*3 # Number of pixels in each iamge
 
 # Number of samples to put aside for validation.
-NUM_VAL_SAMPLES = 20
+# NUM_VAL_SAMPLES = 20
+NUM_VAL_SAMPLES = 64
 
 lib.print_model_settings(locals().copy())
 
@@ -185,8 +186,16 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     num_epochs = int(np.ceil(ITERS / num_examples))
 
     def create_image_dataset(image_file_list, num_epochs, batch_size):
+        def process_image(x):
+            img = tf.image.resize_images(tf.image.decode_jpeg(tf.read_file(x)), size=(64,64))
+            img_shape = img.get_shape()
+            img = tf.cond(tf.equal(tf.shape(img)[-1], 1), lambda : tf.tile(img, (len(img_shape)-1)*[1] + [3]), lambda : img)
+            # img = tf.transpose(img, [2, 0, 1])
+
+            return img
+
         image_dataset = tf.data.Dataset.from_tensor_slices(image_file_list)
-        image_dataset = image_dataset.map(lambda x: tf.image.resize_images(tf.image.decode_jpeg(tf.read_file(x)), size=(64, 64))) # Decoding function returns NHWC format.
+        image_dataset = image_dataset.map(process_image) # Decoding function returns NHWC format.
         image_dataset = image_dataset.repeat(num_epochs).batch(batch_size)
 
         return image_dataset
@@ -209,8 +218,11 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
         # Processing function for reading in a NumPy file.
         def read_npy_file(item):
-            data = np.load(item.decode())
+            data = np.load(item.decode()).astype(np.float32)
+
             data = imresize(data, (64, 64))
+            data = np.expand_dims(data, axis=0)
+            data = np.repeat(data, 3, axis=0)
             return data.astype(np.float32)
 
         mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
@@ -227,7 +239,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
     mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
-    mask_val_batch = mask_val_dataset.get_next()    # Fixed mask batch to use for validation.
+    mask_val_batch = mask_val_iterator.get_next()    # Fixed mask batch to use for validation.
 
     # # Dataset iterator
     # train_gen, dev_gen = lib.small_imagenet.load(BATCH_SIZE, data_dir=DATA_DIR)
@@ -239,22 +251,21 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     # Save a batch of ground-truth samples
 
-    _x = inf_train_gen().next()
-    _x_r = session.run(real_data, feed_dict={real_data_conv: _x[:BATCH_SIZE/N_GPUS]})
-    _x_r = ((_x_r+1.)*(255.99/2)).astype('int32')
-    lib.save_images.save_images(_x_r.reshape((BATCH_SIZE/N_GPUS, 3, 64, 64)), 'samples_groundtruth.png')
+    lib.save_images.save_images(tf.reshape(image_val_batch, (NUM_VAL_SAMPLES, 3, 64, 64)), 'samples_groundtruth.png', sess=session)
 
     # Train loop
     session.run(tf.initialize_all_variables())
-    gen = inf_train_gen()
-    for iteration in xrange(ITERS):
+    # gen = inf_train_gen()
+    for iteration in range(ITERS):
+        print("iteration: ", iteration)
 
         start_time = time.time()
 
         # Train generator
         if iteration > 0:
-            image_batch = image_iterator.get_next()
-            mask_batch = mask_iterator.get_next()
+            image_batch = session.run(tf.transpose(image_iterator.get_next(), [0, 3, 1, 2]))
+            mask_batch = session.run(mask_iterator.get_next()[0])
+
 
             # TODO: Generator needs to take in masked images.
             _ = session.run(gen_train_op, feed_dict={all_real_data_conv: image_batch,
@@ -265,11 +276,22 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             disc_iters = 1
         else:
             disc_iters = CRITIC_ITERS
-        for i in xrange(disc_iters):
+        for i in range(disc_iters):
             # _data = gen.next()
 
-            image_batch = image_iterator.get_next()
-            mask_batch = mask_iterator.get_next()
+            # tmp = image_iterator.get_next()
+            # tmp2 = mask_iterator.get_next()
+
+            image_batch = session.run(tf.transpose(image_iterator.get_next(), [0, 3, 1, 2]))
+
+
+            # print(type(image_batch))
+            # print(image_batch.shape)
+            # print(1/0)
+
+            mask_batch = session.run(mask_iterator.get_next()[0])
+            # print(type(mask_batch))
+            # print(mask_batch.shape)
             # masked_images = image_batch * mask_batch
 
             # TODO: Need to run masked images through the generator and feed both the real images and reconstructed images to discriminator.
@@ -292,7 +314,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
             generate_image(iteration)
 
-        if (iteration < 5) or (iteration % 200 == 199):
-            lib.plot.flush()
+        # if (iteration < 5) or (iteration % 200 == 199):
+        #     lib.plot.flush()
 
-        lib.plot.tick()
+        # lib.plot.tick()
