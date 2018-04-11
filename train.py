@@ -54,11 +54,75 @@ DEVICES = ['/gpu:{}'.format(i) for i in range(N_GPUS)]
 
 Generator, Discriminator = resnet_generator, resnet_discriminator
 
+# Compute number of epochs needed.
+
+num_examples = sum([len(list(glob.glob(image_dir + "/*.jpg"))) for image_dir in IMAGE_DIRS])
+num_epochs = int(np.ceil(ITERS / num_examples))
+
+def create_image_dataset(image_file_list, num_epochs, batch_size):
+    def process_image(x):
+        img = tf.image.resize_images(tf.image.decode_jpeg(tf.read_file(x)), size=(64,64))
+        img_shape = img.get_shape()
+        img = tf.cond(tf.equal(tf.shape(img)[-1], 1), lambda : tf.tile(img, (len(img_shape)-1)*[1] + [3]), lambda : img)
+        # img = tf.transpose(img, [2, 0, 1])
+
+        return img
+
+    image_dataset = tf.data.Dataset.from_tensor_slices(image_file_list)
+    image_dataset = image_dataset.map(process_image) # Decoding function returns NHWC format.
+    image_dataset = image_dataset.repeat(num_epochs).batch(batch_size)
+
+    return image_dataset
+
+# Create image datasets (training and val).
+image_files = list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))
+image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
+
+image_dataset = create_image_dataset(image_files, num_epochs, BATCH_SIZE)
+image_iterator = image_dataset.make_one_shot_iterator()
+
+image_val_dataset = create_image_dataset(image_val_files, 1, NUM_VAL_SAMPLES)
+image_val_iterator = image_val_dataset.make_one_shot_iterator()
+image_val_batch = image_val_iterator.get_next() # Fixed image batch to use for validation.
+
+
+# Create corresponding dataset of masks (https://stackoverflow.com/questions/48889482/feeding-npy-numpy-files-into-tensorflow-data-pipeline).
+
+def create_mask_dataset(mask_file_list, num_epochs, batch_size):
+
+    # Processing function for reading in a NumPy file.
+    def read_npy_file(item):
+        data = np.load(item.decode()).astype(np.float32)
+
+        data = imresize(data, (64, 64))
+        data = np.expand_dims(data, axis=0)
+        data = np.repeat(data, 3, axis=0)
+        return data.astype(np.float32)
+
+    mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
+    mask_dataset = mask_dataset.map(lambda item: tuple(tf.py_func(read_npy_file, [item], [tf.float32,])))
+    mask_dataset = mask_dataset.repeat(num_epochs).batch(batch_size)
+    return mask_dataset
+
+mask_files = list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))
+mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
+
+mask_dataset = create_mask_dataset(mask_files, num_epochs, BATCH_SIZE)
+
+mask_iterator = mask_dataset.make_one_shot_iterator()
+
+mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
+mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
+mask_val_batch = mask_val_iterator.get_next()    # Fixed mask batch to use for validation.
+
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
-    all_real_data_conv = tf.placeholder(tf.int32, shape=[BATCH_SIZE, 3, 64, 64])
-    # binary mask placeholder
-    all_real_data_mask = tf.placeholder(tf.float32, shape=[BATCH_SIZE, 3, 64, 64])
+    # all_real_data_conv = tf.placeholder(tf.int32, shape=[BATCH_SIZE, 3, 64, 64])
+    # # binary mask placeholder
+    # all_real_data_mask = tf.placeholder(tf.float32, shape=[BATCH_SIZE, 3, 64, 64])
+
+    all_read_data_conv = image_iterator.get_next()
+    all_real_data_mask = mask_iterator.get_next()
 
     if tf.__version__.startswith('1.'):
         split_real_data_conv = tf.split(all_real_data_conv, len(DEVICES))
@@ -180,67 +244,6 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     #     samples = ((samples+1.)*(255.99/2)).astype('int32')
     #     lib.save_images.save_images(samples.reshape((BATCH_SIZE, 3, 64, 64)), 'samples_{}.png'.format(iteration))
 
-    # Compute number of epochs needed.
-
-    num_examples = sum([len(list(glob.glob(image_dir + "/*.jpg"))) for image_dir in IMAGE_DIRS])
-    num_epochs = int(np.ceil(ITERS / num_examples))
-
-    def create_image_dataset(image_file_list, num_epochs, batch_size):
-        def process_image(x):
-            img = tf.image.resize_images(tf.image.decode_jpeg(tf.read_file(x)), size=(64,64))
-            img_shape = img.get_shape()
-            img = tf.cond(tf.equal(tf.shape(img)[-1], 1), lambda : tf.tile(img, (len(img_shape)-1)*[1] + [3]), lambda : img)
-            # img = tf.transpose(img, [2, 0, 1])
-
-            return img
-
-        image_dataset = tf.data.Dataset.from_tensor_slices(image_file_list)
-        image_dataset = image_dataset.map(process_image) # Decoding function returns NHWC format.
-        image_dataset = image_dataset.repeat(num_epochs).batch(batch_size)
-
-        return image_dataset
-
-    # Create image datasets (training and val).
-    image_files = list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))
-    image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
-
-    image_dataset = create_image_dataset(image_files, num_epochs, BATCH_SIZE)
-    image_iterator = image_dataset.make_one_shot_iterator()
-
-    image_val_dataset = create_image_dataset(image_val_files, 1, NUM_VAL_SAMPLES)
-    image_val_iterator = image_val_dataset.make_one_shot_iterator()
-    image_val_batch = image_val_iterator.get_next() # Fixed image batch to use for validation.
-
-
-    # Create corresponding dataset of masks (https://stackoverflow.com/questions/48889482/feeding-npy-numpy-files-into-tensorflow-data-pipeline).
-
-    def create_mask_dataset(mask_file_list, num_epochs, batch_size):
-
-        # Processing function for reading in a NumPy file.
-        def read_npy_file(item):
-            data = np.load(item.decode()).astype(np.float32)
-
-            data = imresize(data, (64, 64))
-            data = np.expand_dims(data, axis=0)
-            data = np.repeat(data, 3, axis=0)
-            return data.astype(np.float32)
-
-        mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
-        mask_dataset = mask_dataset.map(lambda item: tuple(tf.py_func(read_npy_file, [item], [tf.float32,])))
-        mask_dataset = mask_dataset.repeat(num_epochs).batch(batch_size)
-        return mask_dataset
-
-    mask_files = list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))
-    mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
-
-    mask_dataset = create_mask_dataset(mask_files, num_epochs, BATCH_SIZE)
-
-    mask_iterator = mask_dataset.make_one_shot_iterator()
-
-    mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
-    mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
-    mask_val_batch = mask_val_iterator.get_next()    # Fixed mask batch to use for validation.
-
     # # Dataset iterator
     # train_gen, dev_gen = lib.small_imagenet.load(BATCH_SIZE, data_dir=DATA_DIR)
 
@@ -268,8 +271,10 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
 
             # TODO: Generator needs to take in masked images.
-            _ = session.run(gen_train_op, feed_dict={all_real_data_conv: image_batch,
-                                                     all_real_data_mask: mask_batch})
+            # _ = session.run(gen_train_op, feed_dict={all_real_data_conv: image_batch,
+            #                                          all_real_data_mask: mask_batch})
+
+            _ = session.run(gen_train_op)
 
         # Train critic
         if (MODE == 'dcgan') or (MODE == 'lsgan'):
@@ -295,9 +300,12 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             # masked_images = image_batch * mask_batch
 
             # TODO: Need to run masked images through the generator and feed both the real images and reconstructed images to discriminator.
-            _disc_cost, _ = session.run([disc_cost, disc_train_op],
-                                        feed_dict={all_real_data_conv: image_batch,
-                                                   all_real_data_mask: mask_batch})
+            # _disc_cost, _ = session.run([disc_cost, disc_train_op],
+            #                             feed_dict={all_real_data_conv: image_batch,
+            #                                        all_real_data_mask: mask_batch})
+
+            _disc_cost, _ = session.run([disc_cost, disc_train_op])
+
             if MODE == 'wgan':
                 _ = session.run([clip_disc_weights])
 
@@ -308,7 +316,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             t = time.time()
             dev_disc_costs = []
             for (images,) in dev_gen():
-                _dev_disc_cost = session.run(disc_cost, feed_dict={all_real_data_conv: images})
+                # _dev_disc_cost = session.run(disc_cost, feed_dict={all_real_data_conv: images})
+                _dev_disc_cost = session.run(disc_cost)
                 dev_disc_costs.append(_dev_disc_cost)
             lib.plot.plot('dev disc cost', np.mean(dev_disc_costs))
 
