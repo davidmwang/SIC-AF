@@ -83,8 +83,6 @@ image_iterator = image_dataset.make_one_shot_iterator()
 
 image_val_dataset = create_image_dataset(image_val_files, 1, NUM_VAL_SAMPLES)
 image_val_iterator = image_val_dataset.make_one_shot_iterator()
-image_val_batch = image_val_iterator.get_next() # Fixed image batch to use for validation.
-
 
 # Create corresponding dataset of masks (https://stackoverflow.com/questions/48889482/feeding-npy-numpy-files-into-tensorflow-data-pipeline).
 
@@ -113,9 +111,12 @@ mask_iterator = mask_dataset.make_one_shot_iterator()
 
 mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
 mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
-mask_val_batch = mask_val_iterator.get_next()    # Fixed mask batch to use for validation.
 
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
+
+    # Load in validation set for evaluation.
+    image_val_batch = session.run(image_val_iterator.get_next())    # Fixed image batch to use for validation.
+    mask_val_batch = session.run(mask_val_iterator.get_next())      # Fixed mask batch to use for validation.
 
     # all_real_data_conv = tf.placeholder(tf.int32, shape=[BATCH_SIZE, 3, 64, 64])
     # # binary mask placeholder
