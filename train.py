@@ -21,6 +21,8 @@ import tflib.plot
 from scipy.misc import imresize
 from wgan_gp import resnet_generator, resnet_discriminator
 from scipy.misc import imsave
+from tensorflow.python.client import timeline
+
 
 # DATA_DIR = ''
 
@@ -288,7 +290,14 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             # _ = session.run(gen_train_op, feed_dict={all_real_data_conv: image_batch,
             #                                          all_real_data_mask: mask_batch})
 
+            # options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+            # run_metadata = tf.RunMetadata()
             _ = session.run(gen_train_op)
+            # _ = session.run(gen_train_op, options=options, run_metadata=run_metadata)
+            # fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+            # chrome_trace = fetched_timeline.generate_chrome_trace_format()
+            # with open('timeline_gen.json', 'w+') as f:
+            #     f.write(chrome_trace)
 
         # Train critic
         if (MODE == 'dcgan') or (MODE == 'lsgan'):
@@ -319,7 +328,14 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             #                             feed_dict={all_real_data_conv: image_batch,
             #                                        all_real_data_mask: mask_batch})
 
+            # options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+            # run_metadata = tf.RunMetadata()
             _disc_cost, _ = session.run([disc_cost, disc_train_op])
+            # _disc_cost, _ = session.run([disc_cost, disc_train_op], options=options, run_metadata=run_metadata)
+            # fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+            # chrome_trace = fetched_timeline.generate_chrome_trace_format()
+            # with open('timeline_discr.json', 'w+') as f:
+            #     f.write(chrome_trace)
 
             if MODE == 'wgan':
                 _ = session.run([clip_disc_weights])
