@@ -60,7 +60,7 @@ Generator, Discriminator = resnet_generator, resnet_discriminator
 # Compute number of epochs needed.
 
 num_examples = sum([len(list(glob.glob(image_dir + "/*.jpg"))) for image_dir in IMAGE_DIRS])
-num_epochs = int(np.ceil(ITERS / num_examples))
+num_epochs = int(np.ceil(6*ITERS / num_examples))
 
 def create_image_dataset(image_file_list, num_epochs, batch_size):
     def process_image(x):
@@ -118,19 +118,13 @@ mask_iterator = mask_dataset.make_one_shot_iterator()
 mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
 mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
 
+
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     # Load in validation set for evaluation.
     image_val_batch = session.run(image_val_iterator.get_next())    # Fixed image batch to use for validation.
     mask_val_batch = session.run(mask_val_iterator.get_next())
-
-    temp = image_val_batch[0]
-    print("temp shaep before", temp.shape)
-
-    temp = temp.transpose([1, 2, 0])
-    print("temp shaep", temp.shape)
-    imsave("whatever.jpg", temp)
-
+    
     # all_real_data_conv = tf.placeholder(tf.int32, shape=[BATCH_SIZE, 3, 64, 64])
     # # binary mask placeholder
     # all_real_data_mask = tf.placeholder(tf.float32, shape=[BATCH_SIZE, 3, 64, 64])
@@ -277,9 +271,15 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     # Train loop
     session.run(tf.initialize_all_variables())
+
+    saver = tf.train.Saver()
+
     # gen = inf_train_gen()
     for iteration in range(ITERS):
         print("iteration: ", iteration)
+        if iteration % (1656) == 0:
+            save_path = saver.save(session, "models/model.ckpt")
+            print("Model saved in path: %s" % save_path)
 
         start_time = time.time()
 
