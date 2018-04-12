@@ -20,6 +20,9 @@ def Batchnorm(name, axes, inputs, is_training=None, stats_iter=None, update_movi
         # return tf.transpose(result, [0,3,1,2])
 
         # New (super fast but untested) implementation:
+
+        
+
         offset = lib.param(name+'.offset', np.zeros(inputs.get_shape()[1], dtype='float32'))
         scale = lib.param(name+'.scale', np.ones(inputs.get_shape()[1], dtype='float32'))
 

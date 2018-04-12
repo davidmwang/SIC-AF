@@ -64,13 +64,15 @@ def create_image_dataset(image_file_list, num_epochs, batch_size):
         img = tf.image.resize_images(tf.image.decode_jpeg(tf.read_file(x)), size=(64,64))
         img_shape = img.get_shape()
         img = tf.cond(tf.equal(tf.shape(img)[-1], 1), lambda : tf.tile(img, (len(img_shape)-1)*[1] + [3]), lambda : img)
-        # img = tf.transpose(img, [2, 0, 1])
+        img = tf.transpose(img, [2, 0, 1])
 
         return img
 
     image_dataset = tf.data.Dataset.from_tensor_slices(image_file_list)
     image_dataset = image_dataset.map(process_image) # Decoding function returns NHWC format.
-    image_dataset = image_dataset.repeat(num_epochs).batch(batch_size)
+    image_dataset = image_dataset.repeat(num_epochs)
+    image_dataset = image_dataset.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
+
 
     return image_dataset
 
@@ -94,12 +96,13 @@ def create_mask_dataset(mask_file_list, num_epochs, batch_size):
 
         data = imresize(data, (64, 64))
         data = np.expand_dims(data, axis=0)
-        data = np.repeat(data, 3, axis=0)
+        # data = np.repeat(data, 3, axis=0)
         return data.astype(np.float32)
 
     mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
-    mask_dataset = mask_dataset.map(lambda item: tuple(tf.py_func(read_npy_file, [item], [tf.float32,])))
-    mask_dataset = mask_dataset.repeat(num_epochs).batch(batch_size)
+    mask_dataset = mask_dataset.map(lambda item: tf.py_func(read_npy_file, [item], tf.float32))
+    mask_dataset = mask_dataset.repeat(num_epochs)
+    mask_dataset = mask_dataset.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
     return mask_dataset
 
 mask_files = list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))
@@ -116,14 +119,15 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     # Load in validation set for evaluation.
     image_val_batch = session.run(image_val_iterator.get_next())    # Fixed image batch to use for validation.
-    mask_val_batch = session.run(mask_val_iterator.get_next())      # Fixed mask batch to use for validation.
+    mask_val_batch = session.run(mask_val_iterator.get_next())
 
     # all_real_data_conv = tf.placeholder(tf.int32, shape=[BATCH_SIZE, 3, 64, 64])
     # # binary mask placeholder
     # all_real_data_mask = tf.placeholder(tf.float32, shape=[BATCH_SIZE, 3, 64, 64])
 
-    all_read_data_conv = image_iterator.get_next()
+    all_real_data_conv = image_iterator.get_next()
     all_real_data_mask = mask_iterator.get_next()
+    all_real_data_mask.set_shape([BATCH_SIZE, 1, 64, 64])
 
     if tf.__version__.startswith('1.'):
         split_real_data_conv = tf.split(all_real_data_conv, len(DEVICES))
@@ -140,7 +144,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             # real_data = tf.reshape(2*((tf.cast(real_data_conv, tf.float32)/255.)-.5), [int(BATCH_SIZE/len(DEVICES)), OUTPUT_DIM])
             real_data = 2*((tf.cast(real_data_conv, tf.float32)/255.)-.5)
 
-            fake_data = Generator(tf.multiply(real_data, 1-all_real_data_mask))
+            fake_data = Generator(tf.multiply(real_data, tf.tile(1-all_real_data_mask, [1, 3, 1, 1])))
             blended_fake_data = tf.multiply(fake_data, all_real_data_mask) + tf.multiply(real_data, 1-all_real_data_mask)
 
             disc_real = Discriminator(real_data)
@@ -267,8 +271,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
         # Train generator
         if iteration > 0:
-            image_batch = session.run(tf.transpose(image_iterator.get_next(), [0, 3, 1, 2]))
-            mask_batch = session.run(mask_iterator.get_next()[0])
+            # image_batch = session.run(all_real)
+            # mask_batch = session.run(mask_iterator.get_next()[0])
 
 
             # TODO: Generator needs to take in masked images.
@@ -288,14 +292,14 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             # tmp = image_iterator.get_next()
             # tmp2 = mask_iterator.get_next()
 
-            image_batch = session.run(tf.transpose(image_iterator.get_next(), [0, 3, 1, 2]))
+            # image_batch = session.run(tf.transpose(image_iterator.get_next(), [0, 3, 1, 2]))
 
 
             # print(type(image_batch))
             # print(image_batch.shape)
             # print(1/0)
 
-            mask_batch = session.run(mask_iterator.get_next()[0])
+            # mask_batch = session.run(mask_iterator.get_next()[0])
             # print(type(mask_batch))
             # print(mask_batch.shape)
             # masked_images = image_batch * mask_batch
