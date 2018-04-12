@@ -246,18 +246,21 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     # For generating samples
     # fixed_noise = tf.constant(np.random.normal(size=(BATCH_SIZE, 128)).astype('float32'))
-    # all_fixed_noise_samples = []
-    # for device_index, device in enumerate(DEVICES):
-    #     n_samples = BATCH_SIZE / len(DEVICES)
-    #     all_fixed_noise_samples.append(Generator(n_samples, noise=fixed_noise[device_index*n_samples:(device_index+1)*n_samples]))
-    # if tf.__version__.startswith('1.'):
-    #     all_fixed_noise_samples = tf.concat(all_fixed_noise_samples, axis=0)
-    # else:
-    #     all_fixed_noise_samples = tf.concat(0, all_fixed_noise_samples)
-    # def generate_image(iteration):
-    #     samples = session.run(all_fixed_noise_samples)
-    #     samples = ((samples+1.)*(255.99/2)).astype('int32')
-    #     lib.save_images.save_images(samples.reshape((BATCH_SIZE, 3, 64, 64)), 'samples_{}.png'.format(iteration))
+    all_fixed_noise_samples = []
+    for device_index, device in enumerate(DEVICES):
+        n_samples = BATCH_SIZE / len(DEVICES)
+        all_fixed_noise_samples.append(Generator(image_val_batch))
+
+    if tf.__version__.startswith('1.'):
+        all_fixed_noise_samples = tf.concat(all_fixed_noise_samples, axis=0)
+    else:
+        all_fixed_noise_samples = tf.concat(0, all_fixed_noise_samples)
+    
+    def generate_image(iteration):
+        samples = session.run(all_fixed_noise_samples)
+        samples = ((samples+1.)*(255.99/2)).astype('int32')
+        samples = samples * image_val_mask + (1 - image_val_mask) * image_val_batch
+        lib.save_images.save_images(samples.reshape((BATCH_SIZE, 3, 64, 64)), 'samples_{}.png'.format(iteration))
 
     # # Dataset iterator
     # train_gen, dev_gen = lib.small_imagenet.load(BATCH_SIZE, data_dir=DATA_DIR)
