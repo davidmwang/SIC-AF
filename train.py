@@ -20,6 +20,7 @@ import tflib.ops.layernorm
 import tflib.plot
 from scipy.misc import imresize
 from wgan_gp import resnet_generator, resnet_discriminator
+from scipy.misc import imsave
 
 # DATA_DIR = ''
 
@@ -120,6 +121,13 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     # Load in validation set for evaluation.
     image_val_batch = session.run(image_val_iterator.get_next())    # Fixed image batch to use for validation.
     mask_val_batch = session.run(mask_val_iterator.get_next())
+
+    temp = image_val_batch[0]
+    print("temp shaep before", temp.shape)
+
+    temp = temp.transpose([1, 2, 0])
+    print("temp shaep", temp.shape)
+    imsave("whatever.jpg", temp)
 
     # all_real_data_conv = tf.placeholder(tf.int32, shape=[BATCH_SIZE, 3, 64, 64])
     # # binary mask placeholder
@@ -259,7 +267,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     # Save a batch of ground-truth samples
 
-    lib.save_images.save_images(tf.reshape(image_val_batch, (NUM_VAL_SAMPLES, 3, 64, 64)), 'samples_groundtruth.png', sess=session)
+
+    lib.save_images.save_images(image_val_batch, 'samples_groundtruth.png', sess=session)
 
     # Train loop
     session.run(tf.initialize_all_variables())
