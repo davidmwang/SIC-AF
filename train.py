@@ -287,6 +287,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         else:
             disc_iters = CRITIC_ITERS
         for i in range(disc_iters):
+            print("in disc_iter", i)
             # _data = gen.next()
 
             # tmp = image_iterator.get_next()

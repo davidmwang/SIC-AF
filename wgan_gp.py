@@ -25,7 +25,7 @@ import tflib.plot
 #     raise Exception('Please specify path to data directory in gan_64x64.py!')
 
 MODE = 'wgan-gp' # dcgan, wgan, wgan-gp, lsgan
-DIM = 3 # Model dimensionality
+DIM = 64 # Model dimensionality
 CRITIC_ITERS = 5 # How many iterations to train the critic for
 N_GPUS = 1 # Number of GPUs
 BATCH_SIZE = 64 # Batch size. Must be a multiple of N_GPUS
@@ -119,7 +119,7 @@ def resnet_generator(inputs, noise=None, dim=DIM, nonlinearity=tf.nn.relu):
     # output = tf.reshape(output, [-1, 8*dim, 4, 4])
     output = inputs
 
-    output = ResidualBlock('Generator.Res1', 1*dim, 4*dim, 3, output, resample=None)
+    output = ResidualBlock('Generator.Res1', 3, 4*dim, 3, output, resample=None)
     output = ResidualBlock('Generator.Res2', 4*dim, 8*dim, 3, output, resample=None)
     output = ResidualBlock('Generator.Res3', 8*dim, 4*dim, 3, output, resample=None)
     output = ResidualBlock('Generator.Res4', 4*dim, 1*dim, 3, output, resample=None)
