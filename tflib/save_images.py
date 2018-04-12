@@ -6,7 +6,7 @@ import numpy as np
 import scipy.misc
 from scipy.misc import imsave
 
-def save_images(X, save_path, sess):
+def save_images(X, save_path):
     n_samples = X.shape[0]
     rows = int(np.sqrt(n_samples))
     while n_samples % rows != 0:

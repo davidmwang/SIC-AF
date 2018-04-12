@@ -100,7 +100,7 @@ def create_mask_dataset(mask_file_list, num_epochs, batch_size):
         data = imresize(data, (64, 64))
         data = np.expand_dims(data, axis=0)
         # data = np.repeat(data, 3, axis=0)
-        return data.astype(np.float32)
+        return data.astype(np.float32)/255.
 
     mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
     mask_dataset = mask_dataset.map(lambda item: tf.py_func(read_npy_file, [item], tf.float32))
@@ -124,7 +124,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     # Load in validation set for evaluation.
     image_val_batch = session.run(image_val_iterator.get_next())    # Fixed image batch to use for validation.
     mask_val_batch = session.run(mask_val_iterator.get_next())
-    
+
     # all_real_data_conv = tf.placeholder(tf.int32, shape=[BATCH_SIZE, 3, 64, 64])
     # # binary mask placeholder
     # all_real_data_mask = tf.placeholder(tf.float32, shape=[BATCH_SIZE, 3, 64, 64])
@@ -243,18 +243,33 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     all_fixed_noise_samples = []
     for device_index, device in enumerate(DEVICES):
         n_samples = BATCH_SIZE / len(DEVICES)
-        all_fixed_noise_samples.append(Generator(image_val_batch))
+        all_fixed_noise_samples.append(Generator(tf.constant((1.0 - (mask_val_batch).repeat(3, axis=1)) * image_val_batch)))
 
     if tf.__version__.startswith('1.'):
         all_fixed_noise_samples = tf.concat(all_fixed_noise_samples, axis=0)
     else:
         all_fixed_noise_samples = tf.concat(0, all_fixed_noise_samples)
-    
+
     def generate_image(iteration):
         samples = session.run(all_fixed_noise_samples)
-        samples = ((samples+1.)*(255.99/2)).astype('int32')
-        samples = samples * image_val_mask + (1 - image_val_mask) * image_val_batch
-        lib.save_images.save_images(samples.reshape((BATCH_SIZE, 3, 64, 64)), 'samples_{}.png'.format(iteration))
+
+
+
+        samples = ((samples+1.)*(255./2)).astype('int32')
+        lib.save_images.save_images(samples, 'samples_gen_{}.png'.format(iteration))
+        # samples = mask_val_batch.repeat(3, axis=1)
+        # print(mask_val_batch[0])
+        # print(1-mask_val_batch[0])
+        # print("=======")
+        # print(np.max(mask_val_batch))
+        # print(np.min(mask_val_batch))
+        # print(samples.shape)
+        # print(mask_val_batch.shape)
+        # print(image_val_batch.shape)
+        samples = samples * (mask_val_batch).repeat(3, axis=1) + (1.0 - (mask_val_batch).repeat(3, axis=1)) * image_val_batch
+        # samples = (1.0 - (mask_val_batch/255.).repeat(3, axis=1)) * image_val_batch
+        # print(samples)
+        lib.save_images.save_images(samples, 'samples_{}.png'.format(iteration))
 
     # # Dataset iterator
     # train_gen, dev_gen = lib.small_imagenet.load(BATCH_SIZE, data_dir=DATA_DIR)
@@ -267,7 +282,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     # Save a batch of ground-truth samples
 
 
-    lib.save_images.save_images(image_val_batch, 'samples_groundtruth.png', sess=session)
+    lib.save_images.save_images(image_val_batch, 'samples_groundtruth.png')
 
     # Train loop
     session.run(tf.initialize_all_variables())
@@ -346,14 +361,14 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         lib.plot.plot('train disc cost', _disc_cost)
         lib.plot.plot('time', time.time() - start_time)
 
-        if iteration % 200 == 199:
-            t = time.time()
-            dev_disc_costs = []
-            for (images,) in dev_gen():
-                # _dev_disc_cost = session.run(disc_cost, feed_dict={all_real_data_conv: images})
-                _dev_disc_cost = session.run(disc_cost)
-                dev_disc_costs.append(_dev_disc_cost)
-            lib.plot.plot('dev disc cost', np.mean(dev_disc_costs))
+        if iteration % 200 == 0:
+            # t = time.time()
+            # dev_disc_costs = []
+            # for (images,) in dev_gen():
+            #     # _dev_disc_cost = session.run(disc_cost, feed_dict={all_real_data_conv: images})
+            #     _dev_disc_cost = session.run(disc_cost)
+            #     dev_disc_costs.append(_dev_disc_cost)
+            # lib.plot.plot('dev disc cost', np.mean(dev_disc_costs))
 
             generate_image(iteration)
 
