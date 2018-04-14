@@ -165,7 +165,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 gen_cost = -tf.reduce_mean(disc_fake)
                 disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
 
-                gen_cost += LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
+                gen_cost = LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
 
                 alpha = tf.random_uniform(
                     shape=[int(BATCH_SIZE/len(DEVICES)),1],
