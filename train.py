@@ -44,7 +44,7 @@ BATCH_SIZE = 64 # Batch size. Must be a multiple of N_GPUS
 ITERS = 200000 # How many iterations to train for
 LAMBDA = 10 # Gradient penalty lambda hyperparameter
 LAMBDA_REC = 0.95
-LAMBDA_ADV = 0.05
+LAMBDA_ADV = 0
 OUTPUT_DIM = 64*64*3 # Number of pixels in each iamge
 
 # Number of samples to put aside for validation.
@@ -95,7 +95,7 @@ def create_mask_dataset(mask_file_list, num_epochs, batch_size):
 
     # Processing function for reading in a NumPy file.
     def read_npy_file(item):
-        data = np.load().astype(np.float32)
+        data = np.load(item.decode()).astype(np.float32)
 
         data = imresize(data, (64, 64))
         data = np.expand_dims(data, axis=0)
@@ -149,13 +149,16 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             # real_data = tf.reshape(2*((tf.cast(real_data_conv, tf.float32)/255.)-.5), [int(BATCH_SIZE/len(DEVICES)), OUTPUT_DIM])
             real_data = 2*((tf.cast(real_data_conv, tf.float32)/255.)-.5)
 
-            fake_data = Generator(tf.multiply(real_data, tf.tile(1-all_real_data_mask, [1, 3, 1, 1])))
-            blended_fake_data = tf.multiply(fake_data, all_real_data_mask) + tf.multiply(real_data, 1-all_real_data_mask)
+            tiled_all_real_data_mask = tf.tile(all_real_data_mask, [1, 3, 1, 1])
+
+            fake_data = Generator(tf.multiply(real_data, 1 - tiled_all_real_data_mask))
+            blended_fake_data = tf.multiply(fake_data, tiled_all_real_data_mask) + tf.multiply(real_data, 1-tiled_all_real_data_mask)
 
             disc_real = Discriminator(real_data)
             disc_fake = Discriminator(blended_fake_data)
 
-            rec_cost = tf.reduce_mean(tf.abs(blended_fake_data - real_data))
+            rec_cost = tf.reduce_mean(tf.reduce_sum(tf.abs(blended_fake_data - real_data), axis=[1,2,3]))
+            # rec_cost = tf.reduce_mean(tf.norm(blended_fake_data - real_data, axis=0, ord=1))
 
             if MODE == 'wgan':
                 gen_cost = -tf.reduce_mean(disc_fake)
@@ -311,7 +314,9 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
             # options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             # run_metadata = tf.RunMetadata()
-            _ = session.run(gen_train_op)
+            _gen_cost, _ = session.run([gen_cost, gen_train_op])
+            print("gen loss:", _gen_cost)
+
             # _ = session.run(gen_train_op, options=options, run_metadata=run_metadata)
             # fetched_timeline = timeline.Timeline(run_metadata.step_stats)
             # chrome_trace = fetched_timeline.generate_chrome_trace_format()
@@ -350,6 +355,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             # options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             # run_metadata = tf.RunMetadata()
             _disc_cost, _ = session.run([disc_cost, disc_train_op])
+            # print("disc loss:", _disc_cost)
             # _disc_cost, _ = session.run([disc_cost, disc_train_op], options=options, run_metadata=run_metadata)
             # fetched_timeline = timeline.Timeline(run_metadata.step_stats)
             # chrome_trace = fetched_timeline.generate_chrome_trace_format()
@@ -362,7 +368,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         lib.plot.plot('train disc cost', _disc_cost)
         lib.plot.plot('time', time.time() - start_time)
 
-        if iteration % 200 == 0:
+        if iteration % 2 == 0:
             # t = time.time()
             # dev_disc_costs = []
             # for (images,) in dev_gen():
@@ -372,6 +378,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             # lib.plot.plot('dev disc cost', np.mean(dev_disc_costs))
 
             generate_image(iteration)
+
 
         # if (iteration < 5) or (iteration % 200 == 199):
         #     lib.plot.flush()
