@@ -95,12 +95,13 @@ def create_mask_dataset(mask_file_list, num_epochs, batch_size):
 
     # Processing function for reading in a NumPy file.
     def read_npy_file(item):
-        data = np.load(item.decode()).astype(np.float32)
+        data = np.load().astype(np.float32)
 
         data = imresize(data, (64, 64))
         data = np.expand_dims(data, axis=0)
         # data = np.repeat(data, 3, axis=0)
-        return data.astype(np.float32)/255.
+        as32 = data.astype(np.float32)
+        return as32/float(np.max(as32))
 
     mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
     mask_dataset = mask_dataset.map(lambda item: tf.py_func(read_npy_file, [item], tf.float32))
