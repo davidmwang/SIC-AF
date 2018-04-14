@@ -52,22 +52,23 @@ def overlap_rec(rec1, rec2):
         return False
     return True
 
-def visualization(im_width,
-                  im_height,
-                  min_box_width,
-                  max_box_width,
-                  min_box_height,
-                  max_box_height,
-                  mask_rec,
-                  num_sample):
-    box = rejection_sample_rec(im_width,
-                               im_height,
-                               min_box_width,
-                               max_box_width,
-                               min_box_height,
-                               max_box_height,
-                               mask_rec,
-                               num_sample)
+# def visualization(im_width,
+#                   im_height,
+#                   min_box_width,
+#                   max_box_width,
+#                   min_box_height,
+#                   max_box_height,
+#                   mask_rec,
+#                   num_sample):
+    # box = rejection_sample_rec(im_width,
+    #                            im_height,
+    #                            min_box_width,
+    #                            max_box_width,
+    #                            min_box_height,
+    #                            max_box_height,
+    #                            mask_rec,
+    #                            num_sample)
+def visualization(mask_rec, box, name):
     fig = plt.figure()
     ax = fig.add_subplot(111, aspect='equal')
     ax.set_ylim(-5,15)
@@ -90,7 +91,8 @@ def visualization(im_width,
                 color='blue'
             )
         )
-    plt.show()
+    # plt.show()
+    plt.savefig(name)
 
 def get_mask_from_diagonal_coord(top_left, bottom_right, img):
     """
