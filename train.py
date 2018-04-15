@@ -41,7 +41,7 @@ DIM = 64 # Model dimensionality
 CRITIC_ITERS = 5 # How many iterations to train the critic for
 N_GPUS = 1 # Number of GPUs
 BATCH_SIZE = 64 # Batch size. Must be a multiple of N_GPUS
-ITERS = 200000 # How many iterations to train for
+ITERS = 20000000 # How many iterations to train for
 LAMBDA = 10 # Gradient penalty lambda hyperparameter
 LAMBDA_REC = 0.95
 LAMBDA_ADV = 0
@@ -152,7 +152,13 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             tiled_all_real_data_mask = tf.tile(all_real_data_mask, [1, 3, 1, 1])
 
             fake_data = Generator(tf.multiply(real_data, 1 - tiled_all_real_data_mask))
+            # print(real_data.get_shape())
+
+            # real_data.set_shape([64, 3, 64, 64])
+            # fake_data = Generator(real_data)
+
             blended_fake_data = tf.multiply(fake_data, tiled_all_real_data_mask) + tf.multiply(real_data, 1-tiled_all_real_data_mask)
+            # blended_fake_data = fake_data
 
             disc_real = Discriminator(real_data)
             disc_fake = Discriminator(blended_fake_data)
@@ -165,10 +171,11 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
 
             elif MODE == 'wgan-gp':
-                gen_cost = -tf.reduce_mean(disc_fake)
+                # gen_cost = -tf.reduce_mean(disc_fake)
                 disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
 
-                gen_cost = LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
+                # gen_cost = LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
+                gen_cost = LAMBDA_REC * rec_cost
 
                 alpha = tf.random_uniform(
                     shape=[int(BATCH_SIZE/len(DEVICES)),1],
@@ -248,6 +255,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     for device_index, device in enumerate(DEVICES):
         n_samples = BATCH_SIZE / len(DEVICES)
         all_fixed_noise_samples.append(Generator(tf.constant((1.0 - (mask_val_batch).repeat(3, axis=1)) * image_val_batch)))
+        # all_fixed_noise_samples.append(Generator(tf.constant(image_val_batch)))
+
 
     if tf.__version__.startswith('1.'):
         all_fixed_noise_samples = tf.concat(all_fixed_noise_samples, axis=0)
@@ -271,6 +280,10 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         # print(mask_val_batch.shape)
         # print(image_val_batch.shape)
         samples = samples * (mask_val_batch).repeat(3, axis=1) + (1.0 - (mask_val_batch).repeat(3, axis=1)) * image_val_batch
+
+        print("sample min:", np.min(samples))
+        print("sample max:", np.max(samples))
+
         # samples = (1.0 - (mask_val_batch/255.).repeat(3, axis=1)) * image_val_batch
         # print(samples)
         lib.save_images.save_images(samples, 'samples_{}.png'.format(iteration))
@@ -292,6 +305,10 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     session.run(tf.initialize_all_variables())
 
     saver = tf.train.Saver()
+    # saver.restore(session, "models/model.ckpt")
+    # generate_image("999999999")
+    # print(1/0)
+
 
     # gen = inf_train_gen()
     for iteration in range(ITERS):
@@ -354,7 +371,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
             # options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             # run_metadata = tf.RunMetadata()
-            _disc_cost, _ = session.run([disc_cost, disc_train_op])
+            # _disc_cost, _ = session.run([disc_cost, disc_train_op])
             # print("disc loss:", _disc_cost)
             # _disc_cost, _ = session.run([disc_cost, disc_train_op], options=options, run_metadata=run_metadata)
             # fetched_timeline = timeline.Timeline(run_metadata.step_stats)
@@ -368,7 +385,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         lib.plot.plot('train disc cost', _disc_cost)
         lib.plot.plot('time', time.time() - start_time)
 
-        if iteration % 2 == 0:
+        if iteration % 100 == 0:
             # t = time.time()
             # dev_disc_costs = []
             # for (images,) in dev_gen():
