@@ -254,6 +254,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     all_fixed_noise_samples = []
     for device_index, device in enumerate(DEVICES):
         n_samples = BATCH_SIZE / len(DEVICES)
+        image_val_batch = 2.0 * ((image_val_batch/255.0) - 0.5)
         all_fixed_noise_samples.append(Generator(tf.constant((1.0 - (mask_val_batch).repeat(3, axis=1)) * image_val_batch)))
         # all_fixed_noise_samples.append(Generator(tf.constant(image_val_batch)))
 
@@ -284,7 +285,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         print("sample min:", np.min(samples))
         print("sample max:", np.max(samples))
 
-        # samples = (1.0 - (mask_val_batch/255.).repeat(3, axis=1)) * image_val_batch
+        samples = (1.0 - (mask_val_batch/255.).repeat(3, axis=1)) * image_val_batch
         # print(samples)
         lib.save_images.save_images(samples, 'samples_{}.png'.format(iteration))
 
@@ -305,7 +306,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     session.run(tf.initialize_all_variables())
 
     saver = tf.train.Saver()
-    # saver.restore(session, "models/model.ckpt")
+    # saver.restore(session, "models/l1_patch_only_model/model.ckpt")
     # generate_image("999999999")
     # print(1/0)
 
