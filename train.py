@@ -171,7 +171,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
 
             elif MODE == 'wgan-gp':
-                # gen_cost = -tf.reduce_mean(disc_fake)
+                gen_cost = -tf.reduce_mean(disc_fake)
                 disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
 
                 gen_cost = LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
@@ -315,7 +315,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     for iteration in range(ITERS):
         print("iteration: ", iteration)
         if iteration % (1656) == 0:
-            save_path = saver.save(session, "models/model.ckpt")
+            save_path = saver.save(session, "models/adversarial_model.ckpt")
             print("Model saved in path: %s" % save_path)
 
         start_time = time.time()
