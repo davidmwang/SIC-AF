@@ -44,7 +44,7 @@ BATCH_SIZE = 64 # Batch size. Must be a multiple of N_GPUS
 ITERS = 20000000 # How many iterations to train for
 LAMBDA = 10 # Gradient penalty lambda hyperparameter
 LAMBDA_REC = 0.95
-LAMBDA_ADV = 0
+LAMBDA_ADV = 0.05
 OUTPUT_DIM = 64*64*3 # Number of pixels in each iamge
 
 # Number of samples to put aside for validation.
@@ -174,8 +174,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 # gen_cost = -tf.reduce_mean(disc_fake)
                 disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
 
-                # gen_cost = LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
-                gen_cost = LAMBDA_REC * rec_cost
+                gen_cost = LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
+                # gen_cost = LAMBDA_REC * rec_cost
 
                 alpha = tf.random_uniform(
                     shape=[int(BATCH_SIZE/len(DEVICES)),1],
