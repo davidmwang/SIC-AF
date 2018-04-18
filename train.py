@@ -350,25 +350,15 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             print("in disc_iter", i)
             # _data = gen.next()
 
-            # tmp = image_iterator.get_next()
-            # tmp2 = mask_iterator.get_next()
-
             # image_batch = session.run(tf.transpose(image_iterator.get_next(), [0, 3, 1, 2]))
-
-
-            # print(type(image_batch))
-            # print(image_batch.shape)
-            # print(1/0)
-
-            # mask_batch = session.run(mask_iterator.get_next()[0])
-            # print(type(mask_batch))
-            # print(mask_batch.shape)
+            image_batch = session.run(image_iterator.get_next())
+            mask_batch = session.run(mask_iterator.get_next())
             # masked_images = image_batch * mask_batch
 
             # TODO: Need to run masked images through the generator and feed both the real images and reconstructed images to discriminator.
-            # _disc_cost, _ = session.run([disc_cost, disc_train_op],
-            #                             feed_dict={all_real_data_conv: image_batch,
-            #                                        all_real_data_mask: mask_batch})
+            _disc_cost, _ = session.run([disc_cost, disc_train_op],
+                                        feed_dict={all_real_data_conv: image_batch,
+                                                   all_real_data_mask: mask_batch})
 
             # options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             # run_metadata = tf.RunMetadata()
