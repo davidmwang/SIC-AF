@@ -285,7 +285,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         print("sample min:", np.min(samples))
         print("sample max:", np.max(samples))
 
-        samples = (1.0 - (mask_val_batch/255.).repeat(3, axis=1)) * image_val_batch
+        # samples = (1.0 - (mask_val_batch/255.).repeat(3, axis=1)) * image_val_batch
         # print(samples)
         lib.save_images.save_images(samples, 'samples_{}.png'.format(iteration))
 
@@ -306,16 +306,16 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     session.run(tf.initialize_all_variables())
 
     saver = tf.train.Saver()
-    # saver.restore(session, "models/l1_patch_only_model/model.ckpt")
+    # saver.restore(session, "models/adversarial_model.ckpt")
     # generate_image("999999999")
     # print(1/0)
 
 
     # gen = inf_train_gen()
     for iteration in range(ITERS):
-        print("iteration: ", iteration)
+        print("==============iteration: ", iteration)
         if iteration % (1656) == 0:
-            save_path = saver.save(session, "models/adversarial_model.ckpt")
+            save_path = saver.save(session, "models/adversarial_model2.ckpt")
             print("Model saved in path: %s" % save_path)
 
         start_time = time.time()
@@ -351,19 +351,19 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             # _data = gen.next()
 
             # image_batch = session.run(tf.transpose(image_iterator.get_next(), [0, 3, 1, 2]))
-            image_batch = session.run(image_iterator.get_next())
-            mask_batch = session.run(mask_iterator.get_next())
+            # image_batch = session.run(image_iterator.get_next())
+            # mask_batch = session.run(mask_iterator.get_next())
             # masked_images = image_batch * mask_batch
 
             # TODO: Need to run masked images through the generator and feed both the real images and reconstructed images to discriminator.
-            _disc_cost, _ = session.run([disc_cost, disc_train_op],
-                                        feed_dict={all_real_data_conv: image_batch,
-                                                   all_real_data_mask: mask_batch})
+            # _disc_cost, _ = session.run([disc_cost, disc_train_op],
+            #                             feed_dict={all_real_data_conv: image_batch,
+            #                                        all_real_data_mask: mask_batch})
 
             # options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             # run_metadata = tf.RunMetadata()
-            # _disc_cost, _ = session.run([disc_cost, disc_train_op])
-            # print("disc loss:", _disc_cost)
+            _disc_cost, _ = session.run([disc_cost, disc_train_op])
+            print("disc loss:", _disc_cost)
             # _disc_cost, _ = session.run([disc_cost, disc_train_op], options=options, run_metadata=run_metadata)
             # fetched_timeline = timeline.Timeline(run_metadata.step_stats)
             # chrome_trace = fetched_timeline.generate_chrome_trace_format()
