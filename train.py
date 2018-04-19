@@ -22,6 +22,7 @@ from scipy.misc import imresize
 from wgan_gp import resnet_generator, resnet_discriminator
 from scipy.misc import imsave
 from tensorflow.python.client import timeline
+from data.PythonAPI.utils import unison_shuffled_copies
 
 
 # DATA_DIR = ''
@@ -79,15 +80,7 @@ def create_image_dataset(image_file_list, num_epochs, batch_size):
 
     return image_dataset
 
-# Create image datasets (training and val).
-image_files = list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))
-image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
 
-image_dataset = create_image_dataset(image_files, num_epochs, BATCH_SIZE)
-image_iterator = image_dataset.make_one_shot_iterator()
-
-image_val_dataset = create_image_dataset(image_val_files, 1, NUM_VAL_SAMPLES)
-image_val_iterator = image_val_dataset.make_one_shot_iterator()
 
 # Create corresponding dataset of masks (https://stackoverflow.com/questions/48889482/feeding-npy-numpy-files-into-tensorflow-data-pipeline).
 
@@ -109,18 +102,27 @@ def create_mask_dataset(mask_file_list, num_epochs, batch_size):
     mask_dataset = mask_dataset.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
     return mask_dataset
 
-mask_files = list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))
+mask_files = np.array(sorted(list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))))
+image_files = np.array(sorted(list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))))
+mask_files, image_files = unison_shuffled_copies(mask_files, image_files)
+
+image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
+image_dataset = create_image_dataset(image_files, num_epochs, BATCH_SIZE)
+image_iterator = image_dataset.make_one_shot_iterator()
+image_val_dataset = create_image_dataset(image_val_files, 1, NUM_VAL_SAMPLES)
+image_val_iterator = image_val_dataset.make_one_shot_iterator()
+
 mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
-
 mask_dataset = create_mask_dataset(mask_files, num_epochs, BATCH_SIZE)
-
 mask_iterator = mask_dataset.make_one_shot_iterator()
-
 mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
 mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
 
 
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
+
+    summary_writer = tf.summary.FileWriter("logs", session.graph, flush_secs=10)
+
 
     # Load in validation set for evaluation.
     image_val_batch = session.run(image_val_iterator.get_next())    # Fixed image batch to use for validation.
@@ -335,6 +337,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             _gen_cost, _ = session.run([gen_cost, gen_train_op])
             print("gen loss:", _gen_cost)
 
+
+
             # _ = session.run(gen_train_op, options=options, run_metadata=run_metadata)
             # fetched_timeline = timeline.Timeline(run_metadata.step_stats)
             # chrome_trace = fetched_timeline.generate_chrome_trace_format()
@@ -372,6 +376,13 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
             if MODE == 'wgan':
                 _ = session.run([clip_disc_weights])
+
+        if iteration > 0:
+            summary = tf.Summary()
+            summary.value.add(tag='generator_cost', simple_value=_gen_cost)
+            print("Writing disc cost ..... ", _disc_cost)
+            summary.value.add(tag='discriminator_cost', simple_value=_disc_cost)
+            summary_writer.add_summary(summary, iteration)
 
         lib.plot.plot('train disc cost', _disc_cost)
         lib.plot.plot('time', time.time() - start_time)

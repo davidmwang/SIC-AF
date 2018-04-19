@@ -108,3 +108,10 @@ def get_mask_from_diagonal_coord(top_left, bottom_right, img):
     newMask = np.logical_and(newMask, cols <= bottom_right[1])
 
     return newMask
+
+
+def unison_shuffled_copies(a, b):
+    assert len(a) == len(b)
+    p = np.random.permutation(len(a))
+    # print(p)
+    return a[p], b[p]
