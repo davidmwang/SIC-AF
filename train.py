@@ -47,6 +47,13 @@ LAMBDA = 10 # Gradient penalty lambda hyperparameter
 LAMBDA_REC = 0.95
 LAMBDA_ADV = 0.05
 OUTPUT_DIM = 64*64*3 # Number of pixels in each iamge
+DIRECTORY = "adversarial_64"
+
+os.mkdir(DIRECTORY)
+os.mkdir("{}/models".format(DIRECTORY))
+os.mkdir("{}/logs".format(DIRECTORY))
+os.mkdir("{}/images".format(DIRECTORY))
+
 
 # Number of samples to put aside for validation.
 # NUM_VAL_SAMPLES = 20
@@ -121,7 +128,7 @@ mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
 
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
-    summary_writer = tf.summary.FileWriter("logs", session.graph, flush_secs=10)
+    summary_writer = tf.summary.FileWriter("{}/logs".format(DIRECTORY), session.graph, flush_secs=10)
 
 
     # Load in validation set for evaluation.
@@ -256,8 +263,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     all_fixed_noise_samples = []
     for device_index, device in enumerate(DEVICES):
         n_samples = BATCH_SIZE / len(DEVICES)
-        image_val_batch = 2.0 * ((image_val_batch/255.0) - 0.5)
-        all_fixed_noise_samples.append(Generator(tf.constant((1.0 - (mask_val_batch).repeat(3, axis=1)) * image_val_batch)))
+        image_val_batch_normalized = 2.0 * ((image_val_batch/255.0) - 0.5)
+        all_fixed_noise_samples.append(Generator(tf.constant((1.0 - (mask_val_batch).repeat(3, axis=1)) * image_val_batch_normalized)))
         # all_fixed_noise_samples.append(Generator(tf.constant(image_val_batch)))
 
 
@@ -272,7 +279,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
 
         samples = ((samples+1.)*(255./2)).astype('int32')
-        lib.save_images.save_images(samples, 'samples_gen_{}.png'.format(iteration))
+        lib.save_images.save_images(samples, '{}/images/samples_gen_{}.png'.format(DIRECTORY, iteration))
         # samples = mask_val_batch.repeat(3, axis=1)
         # print(mask_val_batch[0])
         # print(1-mask_val_batch[0])
@@ -284,12 +291,18 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         # print(image_val_batch.shape)
         samples = samples * (mask_val_batch).repeat(3, axis=1) + (1.0 - (mask_val_batch).repeat(3, axis=1)) * image_val_batch
 
+
         print("sample min:", np.min(samples))
         print("sample max:", np.max(samples))
 
+
+        mask_only = samples * (mask_val_batch).repeat(3, axis=1)
+        lib.save_images.save_images(mask_only, '{}/images/samples_mask_only_{}.png'.format(DIRECTORY, iteration))
+
+
         # samples = (1.0 - (mask_val_batch/255.).repeat(3, axis=1)) * image_val_batch
         # print(samples)
-        lib.save_images.save_images(samples, 'samples_{}.png'.format(iteration))
+        lib.save_images.save_images(samples, '{}/images/samples_{}.png'.format(DIRECTORY, iteration))
 
     # # Dataset iterator
     # train_gen, dev_gen = lib.small_imagenet.load(BATCH_SIZE, data_dir=DATA_DIR)
@@ -302,12 +315,12 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     # Save a batch of ground-truth samples
 
 
-    lib.save_images.save_images(image_val_batch, 'samples_groundtruth.png')
+    lib.save_images.save_images(image_val_batch, '{}/images/samples_groundtruth.png'.format(DIRECTORY))
 
     # Train loop
     session.run(tf.initialize_all_variables())
 
-    saver = tf.train.Saver()
+    # saver = tf.train.Saver()
     # saver.restore(session, "models/adversarial_model.ckpt")
     # generate_image("999999999")
     # print(1/0)
@@ -317,7 +330,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     for iteration in range(ITERS):
         print("==============iteration: ", iteration)
         if iteration % (1656) == 0:
-            save_path = saver.save(session, "models/adversarial_model2.ckpt")
+            save_path = saver.save(session, "{}/models/model.ckpt".format(DIRECTORY))
             print("Model saved in path: %s" % save_path)
 
         start_time = time.time()
@@ -387,7 +400,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         lib.plot.plot('train disc cost', _disc_cost)
         lib.plot.plot('time', time.time() - start_time)
 
-        if iteration % 100 == 0:
+        if iteration % 200 == 0:
             # t = time.time()
             # dev_disc_costs = []
             # for (images,) in dev_gen():
