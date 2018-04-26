@@ -314,8 +314,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         # print(samples)
         # lib.save_images.save_images(samples, '{}/images/samples_{}.png'.format(DIRECTORY, iteration))
 
-        # samples_list = [np.transpose(img, [1, 2, 0]) for img in samples]
-        # print(samples_list[0].shape)
+        # Call get_inception_score, which assumes the input is an array
+        # of length BATCH_SIZE, with each element of shape (64, 64, 3)
         print(get_inception_score(list(np.transpose(samples, [0, 2, 3, 1]))))
         print(get_inception_score(list(np.transpose(image_val_batch, [0, 2, 3, 1]))))
 
