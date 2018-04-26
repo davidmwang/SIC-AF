@@ -28,10 +28,12 @@ from data.PythonAPI.utils import unison_shuffled_copies
 # DATA_DIR = ''
 
 # Directory containing original MSCOCO images.
-IMAGE_DIRS = ["/cs280/home/ubuntu/person", "/cs280/home/ubuntu/no_people"]
+# IMAGE_DIRS = ["/cs280/home/ubuntu/person", "/cs280/home/ubuntu/no_people"]
+IMAGE_DIRS = ["/Users/michaelju/cs194/project/ssd_images"]
 
 # Directory containing masks for associated MSCOCO images to use for training
-MASK_DIRS = ["/cs280/home/ubuntu/person_mask", "/cs280/home/ubuntu/no_people_mask"]
+# MASK_DIRS = ["/cs280/home/ubuntu/person_mask", "/cs280/home/ubuntu/no_people_mask"]
+MASK_DIRS = ["/Users/michaelju/cs194/project/ssd_masks"]
 
 
 if len(IMAGE_DIRS) == 0 or len(MASK_DIRS) == 0:
@@ -113,18 +115,22 @@ mask_files = np.array(sorted(list(itertools.chain.from_iterable([glob.glob(mask_
 image_files = np.array(sorted(list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))))
 mask_files, image_files = unison_shuffled_copies(mask_files, image_files)
 
-image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
-image_dataset = create_image_dataset(image_files, num_epochs, BATCH_SIZE)
-image_iterator = image_dataset.make_one_shot_iterator()
-image_val_dataset = create_image_dataset(image_val_files, 1, NUM_VAL_SAMPLES)
+# image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
+# image_dataset = create_image_dataset(image_files, num_epochs, BATCH_SIZE)
+# image_iterator = image_dataset.make_one_shot_iterator()
+# image_val_dataset = create_image_dataset(image_val_files, 1, NUM_VAL_SAMPLES)
+# image_val_iterator = image_val_dataset.make_one_shot_iterator()
+#
+# mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
+# mask_dataset = create_mask_dataset(mask_files, num_epochs, BATCH_SIZE)
+# mask_iterator = mask_dataset.make_one_shot_iterator()
+# mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
+# mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
+
+image_val_dataset = create_image_dataset(image_files, 1, BATCH_SIZE)
 image_val_iterator = image_val_dataset.make_one_shot_iterator()
-
-mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
-mask_dataset = create_mask_dataset(mask_files, num_epochs, BATCH_SIZE)
-mask_iterator = mask_dataset.make_one_shot_iterator()
-mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
+mask_val_dataset = create_mask_dataset(mask_files, 1, BATCH_SIZE)
 mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
-
 
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
@@ -139,9 +145,11 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     # # binary mask placeholder
     # all_real_data_mask = tf.placeholder(tf.float32, shape=[BATCH_SIZE, 3, 64, 64])
 
-    all_real_data_conv = image_iterator.get_next()
-    all_real_data_mask = mask_iterator.get_next()
-    all_real_data_mask.set_shape([BATCH_SIZE, 1, 64, 64])
+    # all_real_data_conv = image_iterator.get_next()
+    # all_real_data_mask = mask_iterator.get_next()
+    all_real_data_conv = tf.zeros([BATCH_SIZE, 3, 64, 64])
+    all_real_data_mask = tf.zeros([BATCH_SIZE, 1, 64, 64])
+    # all_real_data_mask.set_shape([BATCH_SIZE, 1, 64, 64])
 
     if tf.__version__.startswith('1.'):
         split_real_data_conv = tf.split(all_real_data_conv, len(DEVICES))
@@ -320,96 +328,96 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     # Train loop
     session.run(tf.initialize_all_variables())
 
-    # saver = tf.train.Saver()
-    # saver.restore(session, "models/adversarial_model.ckpt")
-    # generate_image("999999999")
-    # print(1/0)
+    saver = tf.train.Saver()
+    saver.restore(session, "/Users/michaelju/cs194/project/models_l1_and_adversarial/model.ckpt")
+    generate_image("validation")
+    print(1/0)
 
 
     # gen = inf_train_gen()
-    for iteration in range(ITERS):
-        print("==============iteration: ", iteration)
-        if iteration % (1656) == 0:
-            save_path = saver.save(session, "{}/models/model.ckpt".format(DIRECTORY))
-            print("Model saved in path: %s" % save_path)
-
-        start_time = time.time()
-
-        # Train generator
-        if iteration > 0:
-            # image_batch = session.run(all_real)
-            # mask_batch = session.run(mask_iterator.get_next()[0])
-
-
-            # TODO: Generator needs to take in masked images.
-            # _ = session.run(gen_train_op, feed_dict={all_real_data_conv: image_batch,
-            #                                          all_real_data_mask: mask_batch})
-
-            # options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-            # run_metadata = tf.RunMetadata()
-            _gen_cost, _ = session.run([gen_cost, gen_train_op])
-            print("gen loss:", _gen_cost)
-
-
-
-            # _ = session.run(gen_train_op, options=options, run_metadata=run_metadata)
-            # fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-            # chrome_trace = fetched_timeline.generate_chrome_trace_format()
-            # with open('timeline_gen.json', 'w+') as f:
-            #     f.write(chrome_trace)
-
-        # Train critic
-        if (MODE == 'dcgan') or (MODE == 'lsgan'):
-            disc_iters = 1
-        else:
-            disc_iters = CRITIC_ITERS
-        for i in range(disc_iters):
-            print("in disc_iter", i)
-            # _data = gen.next()
-
-            # image_batch = session.run(tf.transpose(image_iterator.get_next(), [0, 3, 1, 2]))
-            # image_batch = session.run(image_iterator.get_next())
-            # mask_batch = session.run(mask_iterator.get_next())
-            # masked_images = image_batch * mask_batch
-
-            # TODO: Need to run masked images through the generator and feed both the real images and reconstructed images to discriminator.
-            # _disc_cost, _ = session.run([disc_cost, disc_train_op],
-            #                             feed_dict={all_real_data_conv: image_batch,
-            #                                        all_real_data_mask: mask_batch})
-
-            # options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-            # run_metadata = tf.RunMetadata()
-            _disc_cost, _ = session.run([disc_cost, disc_train_op])
-            print("disc loss:", _disc_cost)
-            # _disc_cost, _ = session.run([disc_cost, disc_train_op], options=options, run_metadata=run_metadata)
-            # fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-            # chrome_trace = fetched_timeline.generate_chrome_trace_format()
-            # with open('timeline_discr.json', 'w+') as f:
-            #     f.write(chrome_trace)
-
-            if MODE == 'wgan':
-                _ = session.run([clip_disc_weights])
-
-        if iteration > 0:
-            summary = tf.Summary()
-            summary.value.add(tag='generator_cost', simple_value=_gen_cost)
-            print("Writing disc cost ..... ", _disc_cost)
-            summary.value.add(tag='discriminator_cost', simple_value=_disc_cost)
-            summary_writer.add_summary(summary, iteration)
-
-        lib.plot.plot('train disc cost', _disc_cost)
-        lib.plot.plot('time', time.time() - start_time)
-
-        if iteration % 200 == 0:
-            # t = time.time()
-            # dev_disc_costs = []
-            # for (images,) in dev_gen():
-            #     # _dev_disc_cost = session.run(disc_cost, feed_dict={all_real_data_conv: images})
-            #     _dev_disc_cost = session.run(disc_cost)
-            #     dev_disc_costs.append(_dev_disc_cost)
-            # lib.plot.plot('dev disc cost', np.mean(dev_disc_costs))
-
-            generate_image(iteration)
+    # for iteration in range(ITERS):
+    #     print("==============iteration: ", iteration)
+    #     if iteration % (1656) == 0:
+    #         save_path = saver.save(session, "{}/models/model.ckpt".format(DIRECTORY))
+    #         print("Model saved in path: %s" % save_path)
+    #
+    #     start_time = time.time()
+    #
+    #     # Train generator
+    #     if iteration > 0:
+    #         # image_batch = session.run(all_real)
+    #         # mask_batch = session.run(mask_iterator.get_next()[0])
+    #
+    #
+    #         # TODO: Generator needs to take in masked images.
+    #         # _ = session.run(gen_train_op, feed_dict={all_real_data_conv: image_batch,
+    #         #                                          all_real_data_mask: mask_batch})
+    #
+    #         # options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+    #         # run_metadata = tf.RunMetadata()
+    #         _gen_cost, _ = session.run([gen_cost, gen_train_op])
+    #         print("gen loss:", _gen_cost)
+    #
+    #
+    #
+    #         # _ = session.run(gen_train_op, options=options, run_metadata=run_metadata)
+    #         # fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+    #         # chrome_trace = fetched_timeline.generate_chrome_trace_format()
+    #         # with open('timeline_gen.json', 'w+') as f:
+    #         #     f.write(chrome_trace)
+    #
+    #     # Train critic
+    #     if (MODE == 'dcgan') or (MODE == 'lsgan'):
+    #         disc_iters = 1
+    #     else:
+    #         disc_iters = CRITIC_ITERS
+    #     for i in range(disc_iters):
+    #         print("in disc_iter", i)
+    #         # _data = gen.next()
+    #
+    #         # image_batch = session.run(tf.transpose(image_iterator.get_next(), [0, 3, 1, 2]))
+    #         # image_batch = session.run(image_iterator.get_next())
+    #         # mask_batch = session.run(mask_iterator.get_next())
+    #         # masked_images = image_batch * mask_batch
+    #
+    #         # TODO: Need to run masked images through the generator and feed both the real images and reconstructed images to discriminator.
+    #         # _disc_cost, _ = session.run([disc_cost, disc_train_op],
+    #         #                             feed_dict={all_real_data_conv: image_batch,
+    #         #                                        all_real_data_mask: mask_batch})
+    #
+    #         # options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+    #         # run_metadata = tf.RunMetadata()
+    #         _disc_cost, _ = session.run([disc_cost, disc_train_op])
+    #         print("disc loss:", _disc_cost)
+    #         # _disc_cost, _ = session.run([disc_cost, disc_train_op], options=options, run_metadata=run_metadata)
+    #         # fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+    #         # chrome_trace = fetched_timeline.generate_chrome_trace_format()
+    #         # with open('timeline_discr.json', 'w+') as f:
+    #         #     f.write(chrome_trace)
+    #
+    #         if MODE == 'wgan':
+    #             _ = session.run([clip_disc_weights])
+    #
+    #     if iteration > 0:
+    #         summary = tf.Summary()
+    #         summary.value.add(tag='generator_cost', simple_value=_gen_cost)
+    #         print("Writing disc cost ..... ", _disc_cost)
+    #         summary.value.add(tag='discriminator_cost', simple_value=_disc_cost)
+    #         summary_writer.add_summary(summary, iteration)
+    #
+    #     lib.plot.plot('train disc cost', _disc_cost)
+    #     lib.plot.plot('time', time.time() - start_time)
+    #
+    #     if iteration % 200 == 0:
+    #         # t = time.time()
+    #         # dev_disc_costs = []
+    #         # for (images,) in dev_gen():
+    #         #     # _dev_disc_cost = session.run(disc_cost, feed_dict={all_real_data_conv: images})
+    #         #     _dev_disc_cost = session.run(disc_cost)
+    #         #     dev_disc_costs.append(_dev_disc_cost)
+    #         # lib.plot.plot('dev disc cost', np.mean(dev_disc_costs))
+    #
+    #         generate_image(iteration)
 
 
         # if (iteration < 5) or (iteration % 200 == 199):

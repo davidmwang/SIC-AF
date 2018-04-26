@@ -20,13 +20,13 @@ min_confidence = 0.75
 filter_classes = [15]
 
 # Source directory to read in images and process them.
-IMAGE_SRC_DIR = "demo/"
+IMAGE_SRC_DIR = "/Users/michaelju/cs194/project/examples/"
 
 # Directory to write images to.
-IMAGE_DEST_DIR = "ssd_images/"
+IMAGE_DEST_DIR = "/Users/michaelju/cs194/project/ssd_images/"
 
 # Directory to write NumPy masks to.
-MASK_DEST_DIR = "ssd_masks/"
+MASK_DEST_DIR = "/Users/michaelju/cs194/project/ssd_masks/"
 
 # Utility function for processing bounding boxes detected by SSD.
 def process_bboxes(rclasses, rscores, rbboxes):
@@ -54,6 +54,9 @@ image_files = glob.glob("{}/*.jpg".format(IMAGE_SRC_DIR))
 
 for image_file in image_files:
 	img = plt.imread(image_file)
+
+	if len(img.shape) == 2:
+		continue
 
 	rclasses, rscores, rbboxes = ssd_detector.get_bounding_box(img)
 	processed_rbboxes = process_bboxes(rclasses, rscores, rbboxes)
