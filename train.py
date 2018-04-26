@@ -24,16 +24,18 @@ from scipy.misc import imsave
 from tensorflow.python.client import timeline
 from data.PythonAPI.utils import unison_shuffled_copies
 
+from tflib.inception_score import get_inception_score
+
 
 # DATA_DIR = ''
 
 # Directory containing original MSCOCO images.
 # IMAGE_DIRS = ["/cs280/home/ubuntu/person", "/cs280/home/ubuntu/no_people"]
-IMAGE_DIRS = ["/Users/michaelju/cs194/project/ssd_images"]
+IMAGE_DIRS = ["/home/ubuntu/ssd_images"]
 
 # Directory containing masks for associated MSCOCO images to use for training
 # MASK_DIRS = ["/cs280/home/ubuntu/person_mask", "/cs280/home/ubuntu/no_people_mask"]
-MASK_DIRS = ["/Users/michaelju/cs194/project/ssd_masks"]
+MASK_DIRS = ["/home/ubuntu/ssd_masks"]
 
 
 if len(IMAGE_DIRS) == 0 or len(MASK_DIRS) == 0:
@@ -51,10 +53,10 @@ LAMBDA_ADV = 0.05
 OUTPUT_DIM = 64*64*3 # Number of pixels in each iamge
 DIRECTORY = "adversarial_64"
 
-os.mkdir(DIRECTORY)
-os.mkdir("{}/models".format(DIRECTORY))
-os.mkdir("{}/logs".format(DIRECTORY))
-os.mkdir("{}/images".format(DIRECTORY))
+# os.mkdir(DIRECTORY)
+# os.mkdir("{}/models".format(DIRECTORY))
+# os.mkdir("{}/logs".format(DIRECTORY))
+# os.mkdir("{}/images".format(DIRECTORY))
 
 
 # Number of samples to put aside for validation.
@@ -287,7 +289,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
 
         samples = ((samples+1.)*(255./2)).astype('int32')
-        lib.save_images.save_images(samples, '{}/images/samples_gen_{}.png'.format(DIRECTORY, iteration))
+        # lib.save_images.save_images(samples, '{}/images/samples_gen_{}.png'.format(DIRECTORY, iteration))
         # samples = mask_val_batch.repeat(3, axis=1)
         # print(mask_val_batch[0])
         # print(1-mask_val_batch[0])
@@ -305,12 +307,17 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
 
         mask_only = samples * (mask_val_batch).repeat(3, axis=1)
-        lib.save_images.save_images(mask_only, '{}/images/samples_mask_only_{}.png'.format(DIRECTORY, iteration))
+        # lib.save_images.save_images(mask_only, '{}/images/samples_mask_only_{}.png'.format(DIRECTORY, iteration))
 
 
         # samples = (1.0 - (mask_val_batch/255.).repeat(3, axis=1)) * image_val_batch
         # print(samples)
-        lib.save_images.save_images(samples, '{}/images/samples_{}.png'.format(DIRECTORY, iteration))
+        # lib.save_images.save_images(samples, '{}/images/samples_{}.png'.format(DIRECTORY, iteration))
+
+        # samples_list = [np.transpose(img, [1, 2, 0]) for img in samples]
+        # print(samples_list[0].shape)
+        print(get_inception_score(list(np.transpose(samples, [0, 2, 3, 1]))))
+        print(get_inception_score(list(np.transpose(image_val_batch, [0, 2, 3, 1]))))
 
     # # Dataset iterator
     # train_gen, dev_gen = lib.small_imagenet.load(BATCH_SIZE, data_dir=DATA_DIR)
@@ -329,7 +336,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     session.run(tf.initialize_all_variables())
 
     saver = tf.train.Saver()
-    saver.restore(session, "/Users/michaelju/cs194/project/models_l1_and_adversarial/model.ckpt")
+    saver.restore(session, "/home/ubuntu/models_l1_and_adversarial/model.ckpt")
     generate_image("validation")
     print(1/0)
 
