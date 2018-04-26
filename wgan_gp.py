@@ -119,7 +119,9 @@ def resnet_generator(inputs, noise=None, dim=DIM, nonlinearity=tf.nn.relu):
     # output = tf.reshape(output, [-1, 8*dim, 4, 4])
     output = inputs
 
-    output = ResidualBlock('Generator.Res1', 3, 4*dim, 3, output, resample=None)
+
+    print(inputs.get_shape())
+    output = ResidualBlock('Generator.Res1', 4, 4*dim, 3, output, resample=None)
     output = ResidualBlock('Generator.Res2', 4*dim, 8*dim, 3, output, resample=None)
     output = ResidualBlock('Generator.Res3', 8*dim, 4*dim, 3, output, resample=None)
     output = ResidualBlock('Generator.Res4', 4*dim, 1*dim, 3, output, resample=None)

@@ -45,9 +45,9 @@ BATCH_SIZE = 64 # Batch size. Must be a multiple of N_GPUS
 ITERS = 20000000 # How many iterations to train for
 LAMBDA = 10 # Gradient penalty lambda hyperparameter
 LAMBDA_REC = 0.95
-LAMBDA_ADV = 0.05
+LAMBDA_ADV = 0
 OUTPUT_DIM = 64*64*3 # Number of pixels in each iamge
-DIRECTORY = "adversarial_64"
+DIRECTORY = "/cs280/home/ubuntu/SIC-AF/test"
 
 os.mkdir(DIRECTORY)
 os.mkdir("{}/models".format(DIRECTORY))
@@ -156,11 +156,17 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         with tf.device(device):
 
             # real_data = tf.reshape(2*((tf.cast(real_data_conv, tf.float32)/255.)-.5), [int(BATCH_SIZE/len(DEVICES)), OUTPUT_DIM])
-            real_data = 2*((tf.cast(real_data_conv, tf.float32)/255.)-.5)
 
             tiled_all_real_data_mask = tf.tile(all_real_data_mask, [1, 3, 1, 1])
+            real_data_masked = tf.multiply(real_data_conv, 1 - tiled_all_real_data_mask)
+            real_data_masked_and_scaled = 2*((tf.cast(real_data_masked, tf.float32)/255.)-.5)
+            real_data = 2*((tf.cast(real_data_conv, tf.float32)/255.)-.5)
 
-            fake_data = Generator(tf.multiply(real_data, 1 - tiled_all_real_data_mask))
+
+            real_data_masked_and_scaled_and_concat = tf.concat([real_data_masked_and_scaled, all_real_data_mask], axis=1)
+
+
+            fake_data = Generator(real_data_masked_and_scaled_and_concat)
             # print(real_data.get_shape())
 
             # real_data.set_shape([64, 3, 64, 64])
@@ -263,8 +269,10 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     all_fixed_noise_samples = []
     for device_index, device in enumerate(DEVICES):
         n_samples = BATCH_SIZE / len(DEVICES)
-        image_val_batch_normalized = 2.0 * ((image_val_batch/255.0) - 0.5)
-        all_fixed_noise_samples.append(Generator(tf.constant((1.0 - (mask_val_batch).repeat(3, axis=1)) * image_val_batch_normalized)))
+        image_val_batch_masked = image_val_batch * (1.0 - (mask_val_batch).repeat(3, axis=1))
+
+        image_val_batch_normalized = 2.0 * ((image_val_batch_masked/255.0) - 0.5)
+        all_fixed_noise_samples.append(Generator(tf.constant(np.concatenate((image_val_batch_normalized, mask_val_batch), axis=1))))
         # all_fixed_noise_samples.append(Generator(tf.constant(image_val_batch)))
 
 
@@ -320,8 +328,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     # Train loop
     session.run(tf.initialize_all_variables())
 
-    # saver = tf.train.Saver()
-    # saver.restore(session, "models/adversarial_model.ckpt")
+    saver = tf.train.Saver()
+    # saver.restore(session, "/cs280/home/ubuntu/SIC-AF/l1_pretrain/models/model.ckpt")
     # generate_image("999999999")
     # print(1/0)
 
@@ -329,7 +337,9 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     # gen = inf_train_gen()
     for iteration in range(ITERS):
         print("==============iteration: ", iteration)
+
         if iteration % (1656) == 0:
+        # if iteration % (1656) == 0:
             save_path = saver.save(session, "{}/models/model.ckpt".format(DIRECTORY))
             print("Model saved in path: %s" % save_path)
 
@@ -363,42 +373,25 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             disc_iters = 1
         else:
             disc_iters = CRITIC_ITERS
-        for i in range(disc_iters):
-            print("in disc_iter", i)
-            # _data = gen.next()
 
-            # image_batch = session.run(tf.transpose(image_iterator.get_next(), [0, 3, 1, 2]))
-            # image_batch = session.run(image_iterator.get_next())
-            # mask_batch = session.run(mask_iterator.get_next())
-            # masked_images = image_batch * mask_batch
-
-            # TODO: Need to run masked images through the generator and feed both the real images and reconstructed images to discriminator.
-            # _disc_cost, _ = session.run([disc_cost, disc_train_op],
-            #                             feed_dict={all_real_data_conv: image_batch,
-            #                                        all_real_data_mask: mask_batch})
-
-            # options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-            # run_metadata = tf.RunMetadata()
-            _disc_cost, _ = session.run([disc_cost, disc_train_op])
-            print("disc loss:", _disc_cost)
-            # _disc_cost, _ = session.run([disc_cost, disc_train_op], options=options, run_metadata=run_metadata)
-            # fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-            # chrome_trace = fetched_timeline.generate_chrome_trace_format()
-            # with open('timeline_discr.json', 'w+') as f:
-            #     f.write(chrome_trace)
-
-            if MODE == 'wgan':
-                _ = session.run([clip_disc_weights])
+        # ================== UNCOMMENT LATER ================
+        # for i in range(disc_iters):
+        #     print("in disc_iter", i)
+        #
+        #     _disc_cost, _ = session.run([disc_cost, disc_train_op])
+        #     print("disc loss:", _disc_cost)
+        #
+        #
+        #     if MODE == 'wgan':
+        #         _ = session.run([clip_disc_weights])
+        # ===================================================
 
         if iteration > 0:
             summary = tf.Summary()
             summary.value.add(tag='generator_cost', simple_value=_gen_cost)
-            print("Writing disc cost ..... ", _disc_cost)
-            summary.value.add(tag='discriminator_cost', simple_value=_disc_cost)
+            # print("Writing disc cost ..... ", _disc_cost)
+            # summary.value.add(tag='discriminator_cost', simple_value=_disc_cost)
             summary_writer.add_summary(summary, iteration)
-
-        lib.plot.plot('train disc cost', _disc_cost)
-        lib.plot.plot('time', time.time() - start_time)
 
         if iteration % 200 == 0:
             # t = time.time()
