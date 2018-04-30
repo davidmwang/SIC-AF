@@ -25,17 +25,18 @@ from tensorflow.python.client import timeline
 from data.PythonAPI.utils import unison_shuffled_copies
 
 from tflib.inception_score import get_inception_score
+from tflib.metrics import ssim, build_psnr
 
 
 # DATA_DIR = ''
 
 # Directory containing original MSCOCO images.
 # IMAGE_DIRS = ["/cs280/home/ubuntu/person", "/cs280/home/ubuntu/no_people"]
-IMAGE_DIRS = ["/home/ubuntu/ssd_images"]
+IMAGE_DIRS = ["/cs194/home/ubuntu/ssd_images"]
 
 # Directory containing masks for associated MSCOCO images to use for training
 # MASK_DIRS = ["/cs280/home/ubuntu/person_mask", "/cs280/home/ubuntu/no_people_mask"]
-MASK_DIRS = ["/home/ubuntu/ssd_masks"]
+MASK_DIRS = ["/cs194/home/ubuntu/ssd_masks"]
 
 
 if len(IMAGE_DIRS) == 0 or len(MASK_DIRS) == 0:
@@ -316,8 +317,17 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
         # Call get_inception_score, which assumes the input is an array
         # of length BATCH_SIZE, with each element of shape (64, 64, 3)
-        print(get_inception_score(list(np.transpose(samples, [0, 2, 3, 1]))))
-        print(get_inception_score(list(np.transpose(image_val_batch, [0, 2, 3, 1]))))
+        # print(get_inception_score(list(np.transpose(samples, [0, 2, 3, 1]))))
+        # print(get_inception_score(list(np.transpose(image_val_batch, [0, 2, 3, 1]))))
+        samples_trans = tf.constant(np.transpose(samples, [0, 2, 3, 1]), dtype=tf.float32)
+        image_val_batch_trans = tf.constant(np.transpose(image_val_batch, [0, 2, 3, 1]), dtype=tf.float32)
+        ssim_result = ssim(samples_trans, image_val_batch_trans, max_val=255)
+        psnr_result = build_psnr(image_val_batch_trans, samples_trans)
+        ssim_mean, ssim_var = tf.nn.moments(ssim_result, axes=[0])
+
+        with tf.Session() as sess:
+            print(sess.run([ssim_mean, tf.sqrt(ssim_var)]))
+            print(sess.run(psnr_result))
 
     # # Dataset iterator
     # train_gen, dev_gen = lib.small_imagenet.load(BATCH_SIZE, data_dir=DATA_DIR)
@@ -336,7 +346,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     session.run(tf.initialize_all_variables())
 
     saver = tf.train.Saver()
-    saver.restore(session, "/home/ubuntu/models_l1_and_adversarial/model.ckpt")
+    saver.restore(session, "/cs194/home/ubuntu/models_l1_and_adversarial/model.ckpt")
     generate_image("validation")
     print(1/0)
 
