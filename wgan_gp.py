@@ -121,10 +121,11 @@ def resnet_generator(inputs, noise=None, dim=DIM, nonlinearity=tf.nn.relu):
 
 
     print(inputs.get_shape())
-    output = ResidualBlock('Generator.Res1', 4, 4*dim, 3, output, resample='down')
-    output = ResidualBlock('Generator.Res2', 4*dim, 8*dim, 3, output, resample=None)
-    output = ResidualBlock('Generator.Res3', 8*dim, 4*dim, 3, output, resample=None)
-    output = ResidualBlock('Generator.Res4', 4*dim, 1*dim, 3, output, resample='up')
+    output = ResidualBlock('Generator.Res1', 4, 2*dim, 3, output, resample='down')
+    output = ResidualBlock('Generator.Res2', 2*dim, 4*dim, 3, output, resample='down')
+    output = ResidualBlock('Generator.Res3', 4*dim, 8*dim, 3, output, resample=None)
+    output = ResidualBlock('Generator.Res4', 8*dim, 4*dim, 3, output, resample='up')
+    output = ResidualBlock('Generator.Res5', 4*dim, 1*dim, 3, output, resample='up')
 
     output = Normalize('Generator.OutputN', [0,2,3], output)
     output = tf.nn.relu(output)
@@ -139,10 +140,23 @@ def resnet_discriminator(inputs, dim=DIM):
 
     output = ResidualBlock('Discriminator.Res1', dim, 2*dim, 3, output, resample='down')
     output = ResidualBlock('Discriminator.Res2', 2*dim, 4*dim, 3, output, resample='down')
-    output = ResidualBlock('Discriminator.Res3', 4*dim, 8*dim, 3, output, resample='down')
-    output = ResidualBlock('Discriminator.Res4', 8*dim, 8*dim, 3, output, resample='down')
+    output = ResidualBlock('Discriminator.Res3', 4*dim, 4*dim, 3, output, resample='down')
+    output = ResidualBlock('Discriminator.Res4', 4*dim, 4*dim, 3, output, resample='down')
 
     output = tf.reshape(output, [-1, 4*4*8*dim])
-    output = lib.ops.linear.Linear('Discriminator.Output', 4*4*8*dim, 1, output)
+    output = lib.ops.linear.Linear('Discriminator.Output', 4*4*4*dim, 1, output)
     return output
     # return tf.reshape(output, [-1])
+
+def resnet_discriminator_local(inputs, dim=DIM):
+    # output = tf.reshape(inputs, [-1, 3, 64, 64])
+    output = lib.ops.conv2d.Conv2D('Discriminator_local.Input', 3, dim, 3, inputs, he_init=False)
+
+    output = ResidualBlock('Discriminator_local.Res1', dim, 2*dim, 3, output, resample='down')
+    output = ResidualBlock('Discriminator_local.Res2', 2*dim, 4*dim, 3, output, resample='down')
+    output = ResidualBlock('Discriminator_local.Res3', 4*dim, 4*dim, 3, output, resample='down')
+    output = ResidualBlock('Discriminator_local.Res4', 4*dim, 4*dim, 3, output, resample='down')
+
+    output = tf.reshape(output, [-1, 4*4*8*dim])
+    output = lib.ops.linear.Linear('Discriminator_local.Output', 4*4*4*dim, 1, output)
+    return output

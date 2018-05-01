@@ -19,7 +19,7 @@ import tflib.small_imagenet
 import tflib.ops.layernorm
 import tflib.plot
 from scipy.misc import imresize
-from wgan_gp import resnet_generator, resnet_discriminator
+from wgan_gp import resnet_generator, resnet_discriminator, resnet_discriminator_local
 from scipy.misc import imsave
 from tensorflow.python.client import timeline
 from data.PythonAPI.utils import unison_shuffled_copies
@@ -63,7 +63,7 @@ lib.print_model_settings(locals().copy())
 
 DEVICES = ['/gpu:{}'.format(i) for i in range(N_GPUS)]
 
-Generator, Discriminator = resnet_generator, resnet_discriminator
+Generator, Discriminator, Discriminator_local = resnet_generator, resnet_discriminator, resnet_discriminator_local
 
 # Compute number of epochs needed.
 
@@ -174,9 +174,13 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
             blended_fake_data = tf.multiply(fake_data, tiled_all_real_data_mask) + tf.multiply(real_data, 1-tiled_all_real_data_mask)
             # blended_fake_data = fake_data
+            real_data_local =
+            blended_fake_data_local =
 
             disc_real = Discriminator(real_data)
+            disc_real_local = Discriminator_local(real_data_local)
             disc_fake = Discriminator(blended_fake_data)
+            disc_fake_local = Discriminator_local(blended_fake_data_local)
 
             rec_cost = tf.reduce_mean(tf.reduce_sum(tf.abs(blended_fake_data - real_data), axis=[1,2,3]))
             # rec_cost = tf.reduce_mean(tf.norm(blended_fake_data - real_data, axis=0, ord=1))
@@ -186,8 +190,9 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
 
             elif MODE == 'wgan-gp':
-                gen_cost = -tf.reduce_mean(disc_fake)
-                disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
+                gen_cost = -tf.reduce_mean(disc_fake) - reduce_mean(disc_fake_local)
+                disc_cost = tf.reduce_mean(disc_fake_local) + tf.reduce_mean(disc_fake)
+                disc_cost -=  tf.reduce_mean(disc_real) + tf.reduce_mean(disc_real_local)
 
                 gen_cost = LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
                 # gen_cost = LAMBDA_REC * rec_cost
@@ -203,6 +208,13 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
                 gradient_penalty = tf.reduce_mean((slopes-1.)**2)
                 disc_cost += LAMBDA*gradient_penalty
+                # locale
+                differences_local = fake_local - real_data_local
+                interpolates_local = real_data_local + (alpha*differences_local)
+                gradients_local = tf.gradients(Discriminator(interpolates_local), [interpolates_local])[0]
+                slopes_local = tf.sqrt(tf.reduce_sum(tf.square(gradients_local), reduction_indices=[1]))
+                gradient_penalty_local = tf.reduce_mean((slopes_local-1.)**2)
+                disc_cost += LAMBDA*gradient_penalty_local
 
             elif MODE == 'dcgan':
                 try: # tf pre-1.0 (bottom) vs 1.0 (top)
