@@ -48,12 +48,12 @@ LAMBDA_REC = 0.80
 LAMBDA_ADV = 0.20
 IM_SIZE=128
 OUTPUT_DIM = IM_SIZE*IM_SIZE*3 # Number of pixels in each iamge
-DIRECTORY = "/cs280/home/ubuntu/SIC-AF/l1_concat_downsample_128"
+DIRECTORY = "/cs280/home/ubuntu/l1_concat_downsample_128"
 
-# os.mkdir(DIRECTORY)
-# os.mkdir("{}/models".format(DIRECTORY))
-# os.mkdir("{}/logs".format(DIRECTORY))
-# os.mkdir("{}/images".format(DIRECTORY))
+os.mkdir(DIRECTORY)
+os.mkdir("{}/models".format(DIRECTORY))
+os.mkdir("{}/logs".format(DIRECTORY))
+os.mkdir("{}/images".format(DIRECTORY))
 
 
 # Number of samples to put aside for validation.
