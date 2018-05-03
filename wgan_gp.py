@@ -143,7 +143,7 @@ def resnet_discriminator(inputs, dim=DIM):
     output = ResidualBlock('Discriminator.Res3', 4*dim, 4*dim, 3, output, resample='down')
     output = ResidualBlock('Discriminator.Res4', 4*dim, 4*dim, 3, output, resample='down')
 
-    output = tf.reshape(output, [-1, 4*4*8*dim])
+    output = tf.reshape(output, [-1, 4*4*4*dim])
     output = lib.ops.linear.Linear('Discriminator.Output', 4*4*4*dim, 1, output)
     return output
     # return tf.reshape(output, [-1])
@@ -157,6 +157,6 @@ def resnet_discriminator_local(inputs, dim=DIM):
     output = ResidualBlock('Discriminator_local.Res3', 4*dim, 4*dim, 3, output, resample='down')
     output = ResidualBlock('Discriminator_local.Res4', 4*dim, 4*dim, 3, output, resample='down')
 
-    output = tf.reshape(output, [-1, 4*4*8*dim])
-    output = lib.ops.linear.Linear('Discriminator_local.Output', 4*4*4*dim, 1, output)
+    output = tf.reshape(output, [-1, 2*2*4*dim])
+    output = lib.ops.linear.Linear('Discriminator_local.Output', 2*2*4*dim, 1, output)
     return output

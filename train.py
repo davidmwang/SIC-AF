@@ -22,7 +22,7 @@ from scipy.misc import imresize
 from wgan_gp import resnet_generator, resnet_discriminator, resnet_discriminator_local
 from scipy.misc import imsave
 from tensorflow.python.client import timeline
-from data.PythonAPI.utils import unison_shuffled_copies
+from data.PythonAPI.utils import unison_shuffled_copies, get_mask_from_diagonal_coord
 
 
 # DATA_DIR = ''
@@ -44,15 +44,16 @@ N_GPUS = 1 # Number of GPUs
 BATCH_SIZE = 64 # Batch size. Must be a multiple of N_GPUS
 ITERS = 20000000 # How many iterations to train for
 LAMBDA = 10 # Gradient penalty lambda hyperparameter
-LAMBDA_REC = 0.95
-LAMBDA_ADV = 0
-OUTPUT_DIM = 64*64*3 # Number of pixels in each iamge
-DIRECTORY = "/cs280/home/ubuntu/SIC-AF/test"
+LAMBDA_REC = 0.80
+LAMBDA_ADV = 0.20
+IM_SIZE=128
+OUTPUT_DIM = IM_SIZE*IM_SIZE*3 # Number of pixels in each iamge
+DIRECTORY = "/cs280/home/ubuntu/SIC-AF/l1_concat_downsample_128"
 
-os.mkdir(DIRECTORY)
-os.mkdir("{}/models".format(DIRECTORY))
-os.mkdir("{}/logs".format(DIRECTORY))
-os.mkdir("{}/images".format(DIRECTORY))
+# os.mkdir(DIRECTORY)
+# os.mkdir("{}/models".format(DIRECTORY))
+# os.mkdir("{}/logs".format(DIRECTORY))
+# os.mkdir("{}/images".format(DIRECTORY))
 
 
 # Number of samples to put aside for validation.
@@ -72,7 +73,7 @@ num_epochs = int(np.ceil(6*ITERS / num_examples))
 
 def create_image_dataset(image_file_list, num_epochs, batch_size):
     def process_image(x):
-        img = tf.image.resize_images(tf.image.decode_jpeg(tf.read_file(x)), size=(64,64))
+        img = tf.image.resize_images(tf.image.decode_jpeg(tf.read_file(x)), size=(IM_SIZE, IM_SIZE))
         img_shape = img.get_shape()
         img = tf.cond(tf.equal(tf.shape(img)[-1], 1), lambda : tf.tile(img, (len(img_shape)-1)*[1] + [3]), lambda : img)
         img = tf.transpose(img, [2, 0, 1])
@@ -97,7 +98,7 @@ def create_mask_dataset(mask_file_list, num_epochs, batch_size):
     def read_npy_file(item):
         data = np.load(item.decode()).astype(np.float32)
 
-        data = imresize(data, (64, 64))
+        data = imresize(data, (IM_SIZE, IM_SIZE))
         data = np.expand_dims(data, axis=0)
         # data = np.repeat(data, 3, axis=0)
         as32 = data.astype(np.float32)
@@ -108,6 +109,42 @@ def create_mask_dataset(mask_file_list, num_epochs, batch_size):
     mask_dataset = mask_dataset.repeat(num_epochs)
     mask_dataset = mask_dataset.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
     return mask_dataset
+
+
+def create_local_patch_coordinate_dataset(mask_file_list, num_epochs, batch_size):
+    # Processing function for reading in a NumPy file.
+    def read_npy_file(item):
+        data = np.load(item.decode()).astype(np.float32)
+
+        data = imresize(data, (IM_SIZE, IM_SIZE))
+        data = data.astype(np.float32)
+        data = data/float(np.max(data))
+
+        indices = np.where(data == 1.0)
+        center_row = 0.5 * (np.max(indices[0]) + np.min(indices[0]))
+        center_col = 0.5 * (np.min(indices[1]) + np.min(indices[0]))
+
+        center_row = int(min(center_row, IM_SIZE-0.25*IM_SIZE))
+        center_row = int(max(center_row, 0.25 * IM_SIZE))
+
+        center_col = int(min(center_col, IM_SIZE-0.25*IM_SIZE))
+        center_col = int(max(center_col, 0.25 * IM_SIZE))
+
+        top_left = np.array([center_row - IM_SIZE//4, center_col - IM_SIZE//4])
+        # data = np.expand_dims(top_left, axis=0)
+        data = top_left.astype(np.int32)
+
+        return data
+
+
+
+    mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
+    mask_dataset = mask_dataset.map(lambda item: tf.py_func(read_npy_file, [item], tf.int32))
+    mask_dataset = mask_dataset.repeat(num_epochs)
+    mask_dataset = mask_dataset.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
+    return mask_dataset
+
+
 
 mask_files = np.array(sorted(list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))))
 image_files = np.array(sorted(list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))))
@@ -120,11 +157,47 @@ image_val_dataset = create_image_dataset(image_val_files, 1, NUM_VAL_SAMPLES)
 image_val_iterator = image_val_dataset.make_one_shot_iterator()
 
 mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
+print("mask val files: ", mask_val_files[:5])
+print("image val files: ", image_val_files[:5])
+
+
+
 mask_dataset = create_mask_dataset(mask_files, num_epochs, BATCH_SIZE)
 mask_iterator = mask_dataset.make_one_shot_iterator()
 mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
 mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
 
+local_patch_dataset = create_local_patch_coordinate_dataset(mask_files, num_epochs, BATCH_SIZE)
+local_patch_iterator = local_patch_dataset.make_one_shot_iterator()
+local_patch_val_dataset = create_local_patch_coordinate_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
+local_patch_val_iterator = local_patch_val_dataset.make_one_shot_iterator()
+
+
+def apply_batch_crop(img_batch, coord_batch):
+    cropped = []
+
+    for i in range(img_batch.get_shape()[0]):
+        img = img_batch[i]
+        # img = tf.gather(img_batch, [i])
+        coord = coord_batch[i]
+
+        # coord = tf.squeeze(tf.gather(coord_batch, [i]))
+        # print("img batch: ", img_batch.get_shape())
+        # print("coord batch: ", coord_batch.get_shape())
+        # print("img: ", img.get_shape())
+        # print("coord: ", coord.get_shape())
+        #
+
+        # print(1/0)
+        # patch = tf.slice(img, [0, 0, coord[0], coord[1]],
+        #                       [1, 3, IM_SIZE//2, IM_SIZE//2])
+        patch = img[:, coord[0]:coord[0]+IM_SIZE//2, coord[1]:coord[1]+IM_SIZE//2]
+        cropped.append(patch)
+
+    asdf =  tf.stack(cropped)
+
+    print("apply batch crop output shape", asdf.get_shape())
+    return asdf
 
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
@@ -134,6 +207,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     # Load in validation set for evaluation.
     image_val_batch = session.run(image_val_iterator.get_next())    # Fixed image batch to use for validation.
     mask_val_batch = session.run(mask_val_iterator.get_next())
+    local_patch_val_batch = session.run(local_patch_val_iterator.get_next())
 
     # all_real_data_conv = tf.placeholder(tf.int32, shape=[BATCH_SIZE, 3, 64, 64])
     # # binary mask placeholder
@@ -141,7 +215,11 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     all_real_data_conv = image_iterator.get_next()
     all_real_data_mask = mask_iterator.get_next()
-    all_real_data_mask.set_shape([BATCH_SIZE, 1, 64, 64])
+    all_real_data_local_patch = tf.squeeze(local_patch_iterator.get_next())
+    all_real_data_mask.set_shape([BATCH_SIZE, 1, IM_SIZE, IM_SIZE])
+    all_real_data_local_patch.set_shape([BATCH_SIZE, 2])
+
+
 
     if tf.__version__.startswith('1.'):
         split_real_data_conv = tf.split(all_real_data_conv, len(DEVICES))
@@ -174,10 +252,12 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
             blended_fake_data = tf.multiply(fake_data, tiled_all_real_data_mask) + tf.multiply(real_data, 1-tiled_all_real_data_mask)
             # blended_fake_data = fake_data
-            real_data_local =
-            blended_fake_data_local =
+            real_data_local = apply_batch_crop(real_data, all_real_data_local_patch)
+            blended_fake_data_local = apply_batch_crop(blended_fake_data, all_real_data_local_patch)
 
             disc_real = Discriminator(real_data)
+
+
             disc_real_local = Discriminator_local(real_data_local)
             disc_fake = Discriminator(blended_fake_data)
             disc_fake_local = Discriminator_local(blended_fake_data_local)
@@ -190,7 +270,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
 
             elif MODE == 'wgan-gp':
-                gen_cost = -tf.reduce_mean(disc_fake) - reduce_mean(disc_fake_local)
+                gen_cost = -tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_fake_local)
                 disc_cost = tf.reduce_mean(disc_fake_local) + tf.reduce_mean(disc_fake)
                 disc_cost -=  tf.reduce_mean(disc_real) + tf.reduce_mean(disc_real_local)
 
@@ -202,14 +282,18 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                     minval=0.,
                     maxval=1.
                 )
+                alpha = tf.expand_dims(alpha, axis=-1)
+                alpha = tf.expand_dims(alpha, axis=-1)
+
                 differences = blended_fake_data - real_data
+
                 interpolates = real_data + (alpha*differences)
                 gradients = tf.gradients(Discriminator(interpolates), [interpolates])[0]
                 slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
                 gradient_penalty = tf.reduce_mean((slopes-1.)**2)
                 disc_cost += LAMBDA*gradient_penalty
                 # locale
-                differences_local = fake_local - real_data_local
+                differences_local = blended_fake_data_local - real_data_local
                 interpolates_local = real_data_local + (alpha*differences_local)
                 gradients_local = tf.gradients(Discriminator(interpolates_local), [interpolates_local])[0]
                 slopes_local = tf.sqrt(tf.reduce_sum(tf.square(gradients_local), reduction_indices=[1]))
@@ -334,6 +418,12 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     # Save a batch of ground-truth samples
 
+    print("image_val_batch shape: ", tf.constant(image_val_batch).get_shape())
+    print("image val patch batch: ", tf.constant(local_patch_val_batch).get_shape())
+
+    print(local_patch_val_batch)
+
+    lib.save_images.save_images(session.run(apply_batch_crop(tf.constant(image_val_batch), tf.constant(local_patch_val_batch))), '{}/images/samples_local_patches.png'.format(DIRECTORY))
 
     lib.save_images.save_images(image_val_batch, '{}/images/samples_groundtruth.png'.format(DIRECTORY))
 
@@ -387,15 +477,15 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             disc_iters = CRITIC_ITERS
 
         # ================== UNCOMMENT LATER ================
-        # for i in range(disc_iters):
-        #     print("in disc_iter", i)
-        #
-        #     _disc_cost, _ = session.run([disc_cost, disc_train_op])
-        #     print("disc loss:", _disc_cost)
-        #
-        #
-        #     if MODE == 'wgan':
-        #         _ = session.run([clip_disc_weights])
+        for i in range(disc_iters):
+            print("in disc_iter", i)
+
+            _disc_cost, _ = session.run([disc_cost, disc_train_op])
+            print("disc loss:", _disc_cost)
+
+
+            if MODE == 'wgan':
+                _ = session.run([clip_disc_weights])
         # ===================================================
 
         if iteration > 0:
