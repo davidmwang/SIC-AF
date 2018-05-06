@@ -492,7 +492,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             summary = tf.Summary()
             summary.value.add(tag='generator_cost', simple_value=_gen_cost)
             # print("Writing disc cost ..... ", _disc_cost)
-            # summary.value.add(tag='discriminator_cost', simple_value=_disc_cost)
+            summary.value.add(tag='discriminator_cost', simple_value=_disc_cost)
             summary_writer.add_summary(summary, iteration)
 
         if iteration % 200 == 0:
