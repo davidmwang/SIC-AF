@@ -271,8 +271,12 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
             elif MODE == 'wgan-gp':
                 gen_cost = -tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_fake_local)
-                disc_cost = tf.reduce_mean(disc_fake_local) + tf.reduce_mean(disc_fake)
-                disc_cost -=  tf.reduce_mean(disc_real) + tf.reduce_mean(disc_real_local)
+
+                disc_cost_whole = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
+                disc_cost_local = tf.reduce_mean(disc_fake_local) - tf.reduce_mean(disc_real_local)
+
+                disc_cost = disc_cost_whole + disc_cost_local
+
 
                 gen_cost = LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
                 # gen_cost = LAMBDA_REC * rec_cost
@@ -480,7 +484,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         for i in range(disc_iters):
             print("in disc_iter", i)
 
-            _disc_cost, _ = session.run([disc_cost, disc_train_op])
+            _disc_cost, _, _disc_cost_whole, _disc_cost_local = session.run([disc_cost, disc_train_op, disc_cost_whole, disc_cost_local])
             print("disc loss:", _disc_cost)
 
 
@@ -490,9 +494,10 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
         if iteration > 0:
             summary = tf.Summary()
-            summary.value.add(tag='generator_cost', simple_value=_gen_cost)
-            # print("Writing disc cost ..... ", _disc_cost)
-            summary.value.add(tag='discriminator_cost', simple_value=_disc_cost)
+            summary.value.add(tag='generator cost', simple_value=_gen_cost)
+            summary.value.add(tag='discriminator cost (combined)', simple_value=_disc_cost)
+            summary.value.add(tag='discriminator cost (whole image)', simple_value=_disc_cost_whole)
+            summary.value.add(tag='discriminator cost (local crop)', simple_value=_disc_cost_local)
             summary_writer.add_summary(summary, iteration)
 
         if iteration % 200 == 0:
