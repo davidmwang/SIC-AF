@@ -7,7 +7,7 @@ import argparse
 from ssd_detector import SSD_Detector
 from enum import Enum
 from PIL import Image
-import scipy.misc.imresize as resize
+from scipy.misc import imresize
 
 class mode(Enum):
     IDLE = 0
