@@ -204,7 +204,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     # Load in validation set for evaluation.
     image_val_batch = session.run(image_val_iterator.get_next())    # Fixed image batch to use for validation.
     mask_val_batch = session.run(mask_val_iterator.get_next())
-    local_patch_val_batch = session.run(local_patch_val_iterator.get_next())
+    # local_patch_val_batch = session.run(local_patch_val_iterator.get_next())
 
     # all_real_data_conv = tf.placeholder(tf.int32, shape=[BATCH_SIZE, 3, 64, 64])
     # # binary mask placeholder
@@ -319,10 +319,10 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 raise Exception()
 
             gen_costs.append(gen_cost)
-            disc_costs.append(disc_cost)
+            # disc_costs.append(disc_cost)
 
     gen_cost = tf.add_n(gen_costs) / len(DEVICES)
-    disc_cost = tf.add_n(disc_costs) / len(DEVICES)
+    # disc_cost = tf.add_n(disc_costs) / len(DEVICES)
 
     if MODE == 'wgan':
         gen_train_op = tf.train.RMSPropOptimizer(learning_rate=5e-5).minimize(gen_cost,
