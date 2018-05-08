@@ -152,7 +152,7 @@ def resnet_discriminator(inputs, dim=DIM):
 
 def resnet_discriminator_local(inputs, dim=DIM):
     # output = tf.reshape(inputs, [-1, 3, 64, 64])
-    output = lib.ops.conv2d.Conv2D('Discriminator_local.Input', 3, dim, 3, inputs, he_init=False)
+    output = lib.ops.conv2d.Conv2D('Discriminator_local.Input', 4, dim, 3, inputs, he_init=False)
 
     output = ResidualBlock('Discriminator_local.Res1', dim, 2*dim, 3, output, resample='down')
     output = ResidualBlock('Discriminator_local.Res2', 2*dim, 4*dim, 3, output, resample='down')

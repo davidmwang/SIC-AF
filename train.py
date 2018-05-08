@@ -164,10 +164,10 @@ mask_iterator = mask_dataset.make_one_shot_iterator()
 mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
 mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
 
-local_patch_dataset = create_local_patch_coordinate_dataset(mask_files, num_epochs, BATCH_SIZE)
-local_patch_iterator = local_patch_dataset.make_one_shot_iterator()
-local_patch_val_dataset = create_local_patch_coordinate_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
-local_patch_val_iterator = local_patch_val_dataset.make_one_shot_iterator()
+# local_patch_dataset = create_local_patch_coordinate_dataset(mask_files, num_epochs, BATCH_SIZE)
+# local_patch_iterator = local_patch_dataset.make_one_shot_iterator()
+# local_patch_val_dataset = create_local_patch_coordinate_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
+# local_patch_val_iterator = local_patch_val_dataset.make_one_shot_iterator()
 
 
 def apply_batch_crop(img_batch, coord_batch):
@@ -249,15 +249,14 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
             blended_fake_data = tf.multiply(fake_data, tiled_all_real_data_mask) + tf.multiply(real_data, 1-tiled_all_real_data_mask)
             # blended_fake_data = fake_data
-            real_data_local = apply_batch_crop(real_data, all_real_data_local_patch)
-            blended_fake_data_local = apply_batch_crop(blended_fake_data, all_real_data_local_patch)
+            # real_data_local = apply_batch_crop(real_data, all_real_data_local_patch)
+            # blended_fake_data_local = apply_batch_crop(blended_fake_data, all_real_data_local_patch)
 
-            disc_real = Discriminator(real_data)
+            disc_real = Discriminator(tf.concat(concat_dim=1,values=[real_data, all_real_data_mask]))
 
-
-            disc_real_local = Discriminator_local(real_data_local)
-            disc_fake = Discriminator(blended_fake_data)
-            disc_fake_local = Discriminator_local(blended_fake_data_local)
+            # disc_real_local = Discriminator_local(real_data_local)
+            disc_fake = Discriminator(tf.concat(concat_dim=1,values=[blended_fake_data, all_real_data_mask]))
+            # disc_fake_local = Discriminator_local(blended_fake_data_local)
 
             rec_cost = tf.reduce_mean(tf.reduce_sum(tf.abs(blended_fake_data - real_data), axis=[1,2,3]))
             # rec_cost = tf.reduce_mean(tf.norm(blended_fake_data - real_data, axis=0, ord=1))
@@ -269,10 +268,10 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             elif MODE == 'wgan-gp':
                 gen_cost = -tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_fake_local)
 
-                disc_cost_whole = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
-                disc_cost_local = tf.reduce_mean(disc_fake_local) - tf.reduce_mean(disc_real_local)
+                disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
+                # disc_cost_local = tf.reduce_mean(disc_fake_local) - tf.reduce_mean(disc_real_local)
 
-                disc_cost = disc_cost_whole + disc_cost_local
+                # disc_cost = disc_cost_whole + disc_cost_local
 
 
                 gen_cost = LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
@@ -294,12 +293,12 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 gradient_penalty = tf.reduce_mean((slopes-1.)**2)
                 disc_cost += LAMBDA*gradient_penalty
                 # locale
-                differences_local = blended_fake_data_local - real_data_local
-                interpolates_local = real_data_local + (alpha*differences_local)
-                gradients_local = tf.gradients(Discriminator(interpolates_local), [interpolates_local])[0]
-                slopes_local = tf.sqrt(tf.reduce_sum(tf.square(gradients_local), reduction_indices=[1]))
-                gradient_penalty_local = tf.reduce_mean((slopes_local-1.)**2)
-                disc_cost += LAMBDA*gradient_penalty_local
+                # differences_local = blended_fake_data_local - real_data_local
+                # interpolates_local = real_data_local + (alpha*differences_local)
+                # gradients_local = tf.gradients(Discriminator(interpolates_local), [interpolates_local])[0]
+                # slopes_local = tf.sqrt(tf.reduce_sum(tf.square(gradients_local), reduction_indices=[1]))
+                # gradient_penalty_local = tf.reduce_mean((slopes_local-1.)**2)
+                # disc_cost += LAMBDA*gradient_penalty_local
 
             elif MODE == 'dcgan':
                 try: # tf pre-1.0 (bottom) vs 1.0 (top)
@@ -419,12 +418,12 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     # Save a batch of ground-truth samples
 
-    print("image_val_batch shape: ", tf.constant(image_val_batch).get_shape())
-    print("image val patch batch: ", tf.constant(local_patch_val_batch).get_shape())
+    # print("image_val_batch shape: ", tf.constant(image_val_batch).get_shape())
+    # print("image val patch batch: ", tf.constant(local_patch_val_batch).get_shape())
 
-    print(local_patch_val_batch)
+    # print(local_patch_val_batch)
 
-    lib.save_images.save_images(session.run(apply_batch_crop(tf.constant(image_val_batch), tf.constant(local_patch_val_batch))), '{}/images/samples_local_patches.png'.format(DIRECTORY))
+    # lib.save_images.save_images(session.run(apply_batch_crop(tf.constant(image_val_batch), tf.constant(local_patch_val_batch))), '{}/images/samples_local_patches.png'.format(DIRECTORY))
 
     lib.save_images.save_images(image_val_batch, '{}/images/samples_groundtruth.png'.format(DIRECTORY))
 
@@ -493,9 +492,9 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         if iteration > 0:
             summary = tf.Summary()
             summary.value.add(tag='generator cost', simple_value=_gen_cost)
-            summary.value.add(tag='discriminator cost (combined)', simple_value=_disc_cost)
-            summary.value.add(tag='discriminator cost (whole image)', simple_value=_disc_cost_whole)
-            summary.value.add(tag='discriminator cost (local crop)', simple_value=_disc_cost_local)
+            summary.value.add(tag='discriminator cost', simple_value=_disc_cost)
+            # summary.value.add(tag='discriminator cost (whole image)', simple_value=_disc_cost_whole)
+            # summary.value.add(tag='discriminator cost (local crop)', simple_value=_disc_cost_local)
             summary_writer.add_summary(summary, iteration)
 
         if iteration % 200 == 0:
