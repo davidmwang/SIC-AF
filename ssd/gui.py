@@ -13,7 +13,7 @@ class mode(Enum):
     BBOX_SELECTION = 1
 
 # Only create masks for bounding boxes of at least this confidence.
-min_confidence = 0.75
+min_confidence = 0.50
 
 # PASCAL VOC object classes to mask out (15 is person).
 filter_classes = [15]
@@ -28,22 +28,31 @@ def process_bboxes(rclasses, rscores, rbboxes, category=15):
     return processed_rbboxes
 
 def compute_bounding_box(img, category=15):
-    img_width = img.shape[0]
-    img_height = img.shape[1]
+    img_width = img.shape[1]
+    img_height = img.shape[0]
+
+    print(img.shape)
 
     ssd_detector = SSD_Detector()
     rclasses, rscores, rbboxes = ssd_detector.get_bounding_box(img)
+
+    print(rclasses, rscores, rbboxes)
+
     processed_rbboxes = process_bboxes(rclasses, rscores, rbboxes, category)
 
     # Consists of bottom left coordinates.
     output = []
 
-    for box in processed_rbboxes:
-        box_width = img_width * (box[2] - box[0])
-        box_height = img_height * (box[3] - box[1])
+    print(processed_rbboxes)
 
-        bottom_left_x = img_width * box[0]
-        bottom_left_y = img_height - img_height * box[3]
+    for box in processed_rbboxes:
+        box_width = img_width * (box[3] - box[1])
+        box_height = img_height * (box[2] - box[0])
+
+        bottom_left_x = img_width * box[1]
+        bottom_left_y = img_height * box[0]
+
+        print(bottom_left_x, bottom_left_y, box_width, box_height)
 
         output.append([bottom_left_x, bottom_left_y, box_width, box_height])
 
@@ -69,7 +78,7 @@ def window(img_path):
                                                linewidth=1,
                                                edgecolor='g',
                                                facecolor='none'))
-            plt.imshow()
+            plt.show()
             # loc = plt.ginput(1, timeout=-1, show_clicks=False)
             # loc = np.asarray(loc, dtype=np.int32)
             # find corresponding box
