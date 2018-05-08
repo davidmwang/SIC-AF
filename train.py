@@ -212,9 +212,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     all_real_data_conv = image_iterator.get_next()
     all_real_data_mask = mask_iterator.get_next()
-    all_real_data_local_patch = tf.squeeze(local_patch_iterator.get_next())
     all_real_data_mask.set_shape([BATCH_SIZE, 1, IM_SIZE, IM_SIZE])
-    all_real_data_local_patch.set_shape([BATCH_SIZE, 2])
 
 
 
@@ -267,7 +265,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             elif MODE == 'wgan-gp':
                 # gen_cost = -tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_fake_local)
 
-                disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
+                # disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
                 # disc_cost_local = tf.reduce_mean(disc_fake_local) - tf.reduce_mean(disc_real_local)
 
                 # disc_cost = disc_cost_whole + disc_cost_local
@@ -276,21 +274,21 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 # gen_cost = LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
                 gen_cost = LAMBDA_REC * rec_cost
 
-                alpha = tf.random_uniform(
-                    shape=[int(BATCH_SIZE/len(DEVICES)),1],
-                    minval=0.,
-                    maxval=1.
-                )
-                alpha = tf.expand_dims(alpha, axis=-1)
-                alpha = tf.expand_dims(alpha, axis=-1)
+                # alpha = tf.random_uniform(
+                #     shape=[int(BATCH_SIZE/len(DEVICES)),1],
+                #     minval=0.,
+                #     maxval=1.
+                # )
+                # alpha = tf.expand_dims(alpha, axis=-1)
+                # alpha = tf.expand_dims(alpha, axis=-1)
 
-                differences = blended_fake_data - real_data
+                # differences = blended_fake_data - real_data
 
-                interpolates = real_data + (alpha*differences)
-                gradients = tf.gradients(Discriminator(interpolates), [interpolates])[0]
-                slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
-                gradient_penalty = tf.reduce_mean((slopes-1.)**2)
-                disc_cost += LAMBDA*gradient_penalty
+                # interpolates = real_data + (alpha*differences)
+                # gradients = tf.gradients(Discriminator(interpolates), [interpolates])[0]
+                # slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
+                # gradient_penalty = tf.reduce_mean((slopes-1.)**2)
+                # disc_cost += LAMBDA*gradient_penalty
                 # locale
                 # differences_local = blended_fake_data_local - real_data_local
                 # interpolates_local = real_data_local + (alpha*differences_local)
@@ -341,8 +339,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     elif MODE == 'wgan-gp':
         gen_train_op = tf.train.AdamOptimizer(learning_rate=1e-4, beta1=0., beta2=0.9).minimize(gen_cost,
                                           var_list=lib.params_with_name('Generator'), colocate_gradients_with_ops=True)
-        disc_train_op = tf.train.AdamOptimizer(learning_rate=1e-4, beta1=0., beta2=0.9).minimize(disc_cost,
-                                           var_list=lib.params_with_name('Discriminator.'), colocate_gradients_with_ops=True)
+        # disc_train_op = tf.train.AdamOptimizer(learning_rate=1e-4, beta1=0., beta2=0.9).minimize(disc_cost,
+                                           # var_list=lib.params_with_name('Discriminator.'), colocate_gradients_with_ops=True)
 
     elif MODE == 'dcgan':
         gen_train_op = tf.train.AdamOptimizer(learning_rate=2e-4, beta1=0.5).minimize(gen_cost,
