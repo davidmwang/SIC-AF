@@ -4,6 +4,7 @@ import glob
 import tensorflow as tf
 import numpy as np
 import argparse
+import os
 from ssd_detector import SSD_Detector
 from enum import Enum
 from PIL import Image
@@ -102,8 +103,11 @@ def window(img_path):
             # query the network
             # img_small = imresize()
             # super resolution?
+            plt.imsave('./srgan/data/test_LR/test.jpg', filled_image)
+            os.system("./srgan/inference_SRGAN.sh")
+            displayed_img = plt.imread("./srgan/result/test.jpg")
             # display
-            # ax.imshow(displayed_img)
+            ax.imshow(displayed_img)
 
 
 def main():
