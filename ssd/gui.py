@@ -31,19 +31,13 @@ def compute_bounding_box(img, category=15):
     img_width = img.shape[1]
     img_height = img.shape[0]
 
-    print(img.shape)
-
     ssd_detector = SSD_Detector()
     rclasses, rscores, rbboxes = ssd_detector.get_bounding_box(img)
-
-    print(rclasses, rscores, rbboxes)
 
     processed_rbboxes = process_bboxes(rclasses, rscores, rbboxes, category)
 
     # Consists of bottom left coordinates.
     output = []
-
-    print(processed_rbboxes)
 
     for box in processed_rbboxes:
         box_width = img_width * (box[3] - box[1])
@@ -51,8 +45,6 @@ def compute_bounding_box(img, category=15):
 
         bottom_left_x = img_width * box[1]
         bottom_left_y = img_height * box[0]
-
-        print(bottom_left_x, bottom_left_y, box_width, box_height)
 
         output.append([bottom_left_x, bottom_left_y, box_width, box_height])
 
@@ -78,17 +70,19 @@ def window(img_path):
                                                linewidth=1,
                                                edgecolor='g',
                                                facecolor='none'))
-            ax.show()
+            plt.imshow(displayed_img)
             loc = plt.ginput(1, timeout=-1, show_clicks=False)
             loc = np.asarray(loc, dtype=np.int32)[0]
+            print(loc)
             candidate_box = None
             for box in bbox:
                 bottom_left_x, bottom_left_y, box_width, box_height = box
-                if loc[0] >= bottom_left_x and loc[0] <= bottom_left_x + box_width and
+                if loc[0] >= bottom_left_x and loc[0] <= bottom_left_x + box_width and \
                    loc[1] >= bottom_left_y and loc[1] <= bottom_left_y + box_height:
                    candidate_box = box
-            displayed_img[bottom_left_x:bottom_left_x+bottom_left_x + box_width, bottom_left_y:bottom_left_y + box_height] = 0
-            ax.show()
+            displayed_img[int(bottom_left_y):int(bottom_left_y + box_height),
+                          int(bottom_left_x):int(bottom_left_x+ box_width)] = 0
+            ax.imshow(displayed_img)
             # find corresponding box
             # PROCESSING
 
