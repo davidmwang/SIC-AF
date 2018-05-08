@@ -48,7 +48,7 @@ LAMBDA_REC = 0.80
 LAMBDA_ADV = 0.20
 IM_SIZE=128
 OUTPUT_DIM = IM_SIZE*IM_SIZE*3 # Number of pixels in each iamge
-DIRECTORY = "/cs280/home/ubuntu/l1_concat_downsample_128"
+DIRECTORY = "/cs280/home/ubuntu/l1_concat_downsample"
 
 os.mkdir(DIRECTORY)
 os.mkdir("{}/models".format(DIRECTORY))
@@ -122,7 +122,7 @@ def create_local_patch_coordinate_dataset(mask_file_list, num_epochs, batch_size
 
         indices = np.where(data == 1.0)
         center_row = 0.5 * (np.max(indices[0]) + np.min(indices[0]))
-        center_col = 0.5 * (np.min(indices[1]) + np.min(indices[0]))
+        center_col = 0.5 * (np.max(indices[1]) + np.min(indices[1]))
 
         center_row = int(min(center_row, IM_SIZE-0.25*IM_SIZE))
         center_row = int(max(center_row, 0.25 * IM_SIZE))
@@ -137,14 +137,11 @@ def create_local_patch_coordinate_dataset(mask_file_list, num_epochs, batch_size
         return data
 
 
-
     mask_dataset = tf.data.Dataset.from_tensor_slices(mask_files)
     mask_dataset = mask_dataset.map(lambda item: tf.py_func(read_npy_file, [item], tf.int32))
     mask_dataset = mask_dataset.repeat(num_epochs)
     mask_dataset = mask_dataset.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
     return mask_dataset
-
-
 
 mask_files = np.array(sorted(list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))))
 image_files = np.array(sorted(list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))))
@@ -435,7 +432,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     session.run(tf.initialize_all_variables())
 
     saver = tf.train.Saver()
-    # saver.restore(session, "/cs280/home/ubuntu/SIC-AF/l1_pretrain/models/model.ckpt")
+    # saver.restore(session, "/cs280/home/ubuntu/l1_concat_downsample_128/models/model.ckpt")
+    # print("Model restored. ")
     # generate_image("999999999")
     # print(1/0)
 
@@ -444,7 +442,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     for iteration in range(ITERS):
         print("==============iteration: ", iteration)
 
-        if iteration % (1656) == 0:
+        if iteration % (828) == 0:
         # if iteration % (1656) == 0:
             save_path = saver.save(session, "{}/models/model.ckpt".format(DIRECTORY))
             print("Model saved in path: %s" % save_path)
