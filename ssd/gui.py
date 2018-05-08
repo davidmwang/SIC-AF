@@ -7,6 +7,7 @@ import argparse
 from ssd_detector import SSD_Detector
 from enum import Enum
 from PIL import Image
+import scipy.misc.imresize as resize
 
 class mode(Enum):
     IDLE = 0
@@ -75,16 +76,34 @@ def window(img_path):
             loc = np.asarray(loc, dtype=np.int32)[0]
             print(loc)
             candidate_box = None
+            new_bbox = []
             for box in bbox:
                 bottom_left_x, bottom_left_y, box_width, box_height = box
                 if loc[0] >= bottom_left_x and loc[0] <= bottom_left_x + box_width and \
                    loc[1] >= bottom_left_y and loc[1] <= bottom_left_y + box_height:
                    candidate_box = box
+                else:
+                    new_bbox.append(box)
+            bbox = new_bbox
             displayed_img[int(bottom_left_y):int(bottom_left_y + box_height),
                           int(bottom_left_x):int(bottom_left_x+ box_width)] = 0
             ax.imshow(displayed_img)
-            # find corresponding box
-            # PROCESSING
+            mask = np.zeros(displayed_img.shape)
+            mask[int(bottom_left_y):int(bottom_left_y + box_height),
+                 int(bottom_left_x):int(bottom_left_x+ box_width)] = 1
+            mask = mask.astype(bool)
+            np.save('test_mask', mask)
+            plt.imsave('test_img.jpg', displayed_img)
+    		# cols = np.repeat(np.expand_dims(np.arange(img.shape[1]), axis=0), repeats=img.shape[0], axis=0)
+    		# rows = np.repeat(np.expand_dims(np.arange(img.shape[0]), axis=1), repeats=img.shape[1], axis=1)
+    		# newMask = np.logical_and(rows >= top_left[0], rows <= bottom_right[0])
+    		# newMask = np.logical_and(newMask, cols >= top_left[1])
+    		# newMask = np.logical_and(newMask, cols <= bottom_right[1])
+            # query the network
+            # img_small = imresize()
+            # super resolution?
+            # display
+            # ax.imshow(displayed_img)
 
 
 def main():
