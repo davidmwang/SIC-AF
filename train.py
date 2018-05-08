@@ -48,7 +48,7 @@ LAMBDA_REC = 0.80
 LAMBDA_ADV = 0.20
 IM_SIZE=128
 OUTPUT_DIM = IM_SIZE*IM_SIZE*3 # Number of pixels in each iamge
-DIRECTORY = "/cs280/home/ubuntu/l1_concat_downsample"
+DIRECTORY = "/cs280/home/ubuntu/l1_concat_mask_to_discriminator"
 
 os.mkdir(DIRECTORY)
 os.mkdir("{}/models".format(DIRECTORY))
@@ -204,7 +204,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     # Load in validation set for evaluation.
     image_val_batch = session.run(image_val_iterator.get_next())    # Fixed image batch to use for validation.
     mask_val_batch = session.run(mask_val_iterator.get_next())
-    local_patch_val_batch = session.run(local_patch_val_iterator.get_next())
+    # local_patch_val_batch = session.run(local_patch_val_iterator.get_next())
 
     # all_real_data_conv = tf.placeholder(tf.int32, shape=[BATCH_SIZE, 3, 64, 64])
     # # binary mask placeholder
@@ -212,9 +212,9 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     all_real_data_conv = image_iterator.get_next()
     all_real_data_mask = mask_iterator.get_next()
-    all_real_data_local_patch = tf.squeeze(local_patch_iterator.get_next())
+    # all_real_data_local_patch = tf.squeeze(local_patch_iterator.get_next())
     all_real_data_mask.set_shape([BATCH_SIZE, 1, IM_SIZE, IM_SIZE])
-    all_real_data_local_patch.set_shape([BATCH_SIZE, 2])
+    # all_real_data_local_patch.set_shape([BATCH_SIZE, 2])
 
 
 
@@ -252,10 +252,11 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             # real_data_local = apply_batch_crop(real_data, all_real_data_local_patch)
             # blended_fake_data_local = apply_batch_crop(blended_fake_data, all_real_data_local_patch)
 
-            disc_real = Discriminator(tf.concat(concat_dim=1,values=[real_data, all_real_data_mask]))
+            disc_real = Discriminator(real_data_masked_and_scaled_and_concat)
 
             # disc_real_local = Discriminator_local(real_data_local)
-            disc_fake = Discriminator(tf.concat(concat_dim=1,values=[blended_fake_data, all_real_data_mask]))
+            blended_data_masked_and_scaled_and_concat = tf.concat([blended_fake_data, all_real_data_mask], axis=1)
+            disc_fake = Discriminator(blended_data_masked_and_scaled_and_concat)
             # disc_fake_local = Discriminator_local(blended_fake_data_local)
 
             rec_cost = tf.reduce_mean(tf.reduce_sum(tf.abs(blended_fake_data - real_data), axis=[1,2,3]))
@@ -266,7 +267,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
 
             elif MODE == 'wgan-gp':
-                gen_cost = -tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_fake_local)
+                gen_cost = -tf.reduce_mean(disc_fake) #- tf.reduce_mean(disc_fake_local)
 
                 disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
                 # disc_cost_local = tf.reduce_mean(disc_fake_local) - tf.reduce_mean(disc_real_local)
@@ -285,9 +286,9 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 alpha = tf.expand_dims(alpha, axis=-1)
                 alpha = tf.expand_dims(alpha, axis=-1)
 
-                differences = blended_fake_data - real_data
+                differences = blended_data_masked_and_scaled_and_concat - real_data_masked_and_scaled_and_concat
 
-                interpolates = real_data + (alpha*differences)
+                interpolates = real_data_masked_and_scaled_and_concat + (alpha*differences)
                 gradients = tf.gradients(Discriminator(interpolates), [interpolates])[0]
                 slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
                 gradient_penalty = tf.reduce_mean((slopes-1.)**2)
@@ -481,7 +482,9 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         for i in range(disc_iters):
             print("in disc_iter", i)
 
-            _disc_cost, _, _disc_cost_whole, _disc_cost_local = session.run([disc_cost, disc_train_op, disc_cost_whole, disc_cost_local])
+            # _disc_cost, _, _disc_cost_whole, _disc_cost_local = session.run([disc_cost, disc_train_op, disc_cost_whole, disc_cost_local])
+            _disc_cost, _, = session.run([disc_cost, disc_train_op])
+
             print("disc loss:", _disc_cost)
 
 

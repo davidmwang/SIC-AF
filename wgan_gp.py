@@ -138,7 +138,7 @@ def resnet_generator(inputs, noise=None, dim=DIM, nonlinearity=tf.nn.relu):
 
 def resnet_discriminator(inputs, dim=DIM):
     # output = tf.reshape(inputs, [-1, 3, 64, 64])
-    output = lib.ops.conv2d.Conv2D('Discriminator.Input', 3, dim, 3, inputs, he_init=False)
+    output = lib.ops.conv2d.Conv2D('Discriminator.Input', 4, dim, 3, inputs, he_init=False)
 
     output = ResidualBlock('Discriminator.Res1', dim, 2*dim, 3, output, resample='down')
     output = ResidualBlock('Discriminator.Res2', 2*dim, 4*dim, 3, output, resample='down')
