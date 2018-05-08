@@ -78,9 +78,17 @@ def window(img_path):
                                                linewidth=1,
                                                edgecolor='g',
                                                facecolor='none'))
-            plt.show()
-            # loc = plt.ginput(1, timeout=-1, show_clicks=False)
-            # loc = np.asarray(loc, dtype=np.int32)
+            ax.show()
+            loc = plt.ginput(1, timeout=-1, show_clicks=False)
+            loc = np.asarray(loc, dtype=np.int32)[0]
+            candidate_box = None
+            for box in bbox:
+                bottom_left_x, bottom_left_y, box_width, box_height = box
+                if loc[0] >= bottom_left_x and loc[0] <= bottom_left_x + box_width and
+                   loc[1] >= bottom_left_y and loc[1] <= bottom_left_y + box_height:
+                   candidate_box = box
+            displayed_img[bottom_left_x:bottom_left_x+bottom_left_x + box_width, bottom_left_y:bottom_left_y + box_height] = 0
+            ax.show()
             # find corresponding box
             # PROCESSING
 
