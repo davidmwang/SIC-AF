@@ -48,7 +48,7 @@ LAMBDA_REC = 0.80
 LAMBDA_ADV = 0.20
 IM_SIZE=128
 OUTPUT_DIM = IM_SIZE*IM_SIZE*3 # Number of pixels in each iamge
-DIRECTORY = "/cs280/home/ubuntu/l1_concat_downsample"
+DIRECTORY = "/cs280/home/ubuntu/l1_baseline"
 
 os.mkdir(DIRECTORY)
 os.mkdir("{}/models".format(DIRECTORY))
@@ -240,7 +240,6 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
             real_data_masked_and_scaled_and_concat = tf.concat([real_data_masked_and_scaled, all_real_data_mask], axis=1)
 
-
             fake_data = Generator(real_data_masked_and_scaled_and_concat)
             # print(real_data.get_shape())
 
@@ -252,10 +251,10 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             # real_data_local = apply_batch_crop(real_data, all_real_data_local_patch)
             # blended_fake_data_local = apply_batch_crop(blended_fake_data, all_real_data_local_patch)
 
-            disc_real = Discriminator(tf.concat(concat_dim=1,values=[real_data, all_real_data_mask]))
+            # disc_real = Discriminator(tf.concat(concat_dim=1,values=[real_data, all_real_data_mask]))
 
             # disc_real_local = Discriminator_local(real_data_local)
-            disc_fake = Discriminator(tf.concat(concat_dim=1,values=[blended_fake_data, all_real_data_mask]))
+            # disc_fake = Discriminator(tf.concat(concat_dim=1,values=[blended_fake_data, all_real_data_mask]))
             # disc_fake_local = Discriminator_local(blended_fake_data_local)
 
             rec_cost = tf.reduce_mean(tf.reduce_sum(tf.abs(blended_fake_data - real_data), axis=[1,2,3]))
@@ -266,7 +265,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
 
             elif MODE == 'wgan-gp':
-                gen_cost = -tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_fake_local)
+                # gen_cost = -tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_fake_local)
 
                 disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
                 # disc_cost_local = tf.reduce_mean(disc_fake_local) - tf.reduce_mean(disc_real_local)
@@ -274,8 +273,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 # disc_cost = disc_cost_whole + disc_cost_local
 
 
-                gen_cost = LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
-                # gen_cost = LAMBDA_REC * rec_cost
+                # gen_cost = LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
+                gen_cost = LAMBDA_REC * rec_cost
 
                 alpha = tf.random_uniform(
                     shape=[int(BATCH_SIZE/len(DEVICES)),1],
@@ -436,7 +435,6 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     # generate_image("999999999")
     # print(1/0)
 
-
     # gen = inf_train_gen()
     for iteration in range(ITERS):
         print("==============iteration: ", iteration)
@@ -472,27 +470,27 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             #     f.write(chrome_trace)
 
         # Train critic
-        if (MODE == 'dcgan') or (MODE == 'lsgan'):
-            disc_iters = 1
-        else:
-            disc_iters = CRITIC_ITERS
+        # if (MODE == 'dcgan') or (MODE == 'lsgan'):
+        #     disc_iters = 1
+        # else:
+        #     disc_iters = CRITIC_ITERS
 
-        # ================== UNCOMMENT LATER ================
-        for i in range(disc_iters):
-            print("in disc_iter", i)
+        # # ================== UNCOMMENT LATER ================
+        # for i in range(disc_iters):
+        #     print("in disc_iter", i)
 
-            _disc_cost, _, _disc_cost_whole, _disc_cost_local = session.run([disc_cost, disc_train_op, disc_cost_whole, disc_cost_local])
-            print("disc loss:", _disc_cost)
+        #     _disc_cost, _, _disc_cost_whole, _disc_cost_local = session.run([disc_cost, disc_train_op, disc_cost_whole, disc_cost_local])
+        #     print("disc loss:", _disc_cost)
 
 
-            if MODE == 'wgan':
-                _ = session.run([clip_disc_weights])
-        # ===================================================
+        #     if MODE == 'wgan':
+        #         _ = session.run([clip_disc_weights])
+        # # ===================================================
 
         if iteration > 0:
             summary = tf.Summary()
-            summary.value.add(tag='generator cost', simple_value=_gen_cost)
-            summary.value.add(tag='discriminator cost', simple_value=_disc_cost)
+            summary.value.add(tag='reconstruction cost', simple_value=_gen_cost)
+            # summary.value.add(tag='discriminator cost', simple_value=_disc_cost)
             # summary.value.add(tag='discriminator cost (whole image)', simple_value=_disc_cost_whole)
             # summary.value.add(tag='discriminator cost (local crop)', simple_value=_disc_cost_local)
             summary_writer.add_summary(summary, iteration)
