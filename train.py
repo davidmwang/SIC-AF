@@ -252,7 +252,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             # real_data_local = apply_batch_crop(real_data, all_real_data_local_patch)
             # blended_fake_data_local = apply_batch_crop(blended_fake_data, all_real_data_local_patch)
 
-            disc_real = Discriminator(real_data_masked_and_scaled_and_concat)
+            disc_real = Discriminator(tf.concat([real_data, all_real_data_mask], axis=1))
 
             # disc_real_local = Discriminator_local(real_data_local)
             blended_data_masked_and_scaled_and_concat = tf.concat([blended_fake_data, all_real_data_mask], axis=1)
