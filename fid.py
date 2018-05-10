@@ -55,12 +55,12 @@ def _get_inception_layer(sess):
                   new_shape.append(None)
                 else:
                   new_shape.append(s)
-              o._shape = tf.TensorShape(new_shape)
+              o.set_shape(tf.TensorShape(new_shape))
     return pool3
 #-------------------------------------------------------------------------------
 
 
-def get_activations(images, sess, batch_size=50, verbose=False):
+def get_activations(images, sess, batch_size=1, verbose=False):
     """Calculates the activations of the pool_3 layer for all images.
     Params:
     -- images      : Numpy array of dimension (n_images, hi, wi, 3). The values
@@ -76,9 +76,11 @@ def get_activations(images, sess, batch_size=50, verbose=False):
     """
     inception_layer = _get_inception_layer(sess)
     d0 = images.shape[0]
-    if batch_size > d0:
-        print("warning: batch size is bigger than the data size. setting batch size to data size")
-        batch_size = d0
+    print("D0:", d0)
+    # if batch_size > d0:
+    #     print("warning: batch size is bigger than the data size. setting batch size to data size")
+    #     batch_size = 1
+    batch_size = 1
     n_batches = d0//batch_size
     n_used_imgs = n_batches*batch_size
     pred_arr = np.empty((n_used_imgs,2048))
@@ -88,6 +90,7 @@ def get_activations(images, sess, batch_size=50, verbose=False):
         start = i*batch_size
         end = start + batch_size
         batch = images[start:end]
+        # print("Batch:", batch.shape)
         pred = sess.run(inception_layer, {'FID_Inception_Net/ExpandDims:0': batch})
         pred_arr[start:end] = pred.reshape(batch_size,-1)
     if verbose:

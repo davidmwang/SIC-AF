@@ -24,6 +24,9 @@ from scipy.misc import imsave
 from tensorflow.python.client import timeline
 from data.PythonAPI.utils import unison_shuffled_copies, get_mask_from_diagonal_coord
 
+import matplotlib.pyplot as plt
+from tflib.inception_score import get_inception_score
+from fid import calculate_fid_given_paths
 
 # DATA_DIR = ''
 
@@ -41,7 +44,7 @@ MODE = 'wgan-gp' # dcgan, wgan, wgan-gp, lsgan
 DIM = 64 # Model dimensionality
 CRITIC_ITERS = 5 # How many iterations to train the critic for
 N_GPUS = 1 # Number of GPUs
-BATCH_SIZE = 64 # Batch size. Must be a multiple of N_GPUS
+BATCH_SIZE = 512 # Batch size. Must be a multiple of N_GPUS
 ITERS = 20000000 # How many iterations to train for
 LAMBDA = 10 # Gradient penalty lambda hyperparameter
 LAMBDA_REC = 0.80
@@ -58,7 +61,7 @@ DIRECTORY = "/cs280/home/ubuntu/l1_concat_downsample"
 
 # Number of samples to put aside for validation.
 # NUM_VAL_SAMPLES = 20
-NUM_VAL_SAMPLES = 64
+NUM_VAL_SAMPLES = 1024
 
 lib.print_model_settings(locals().copy())
 
@@ -145,7 +148,7 @@ def create_local_patch_coordinate_dataset(mask_file_list, num_epochs, batch_size
 
 mask_files = np.array(sorted(list(itertools.chain.from_iterable([glob.glob(mask_dir + "/*.npy") for mask_dir in MASK_DIRS]))))
 image_files = np.array(sorted(list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))))
-mask_files, image_files = unison_shuffled_copies(mask_files, image_files)
+# mask_files, image_files = unison_shuffled_copies(mask_files, image_files)
 
 # image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
 # image_dataset = create_image_dataset(image_files, num_epochs, BATCH_SIZE)
@@ -430,7 +433,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     # lib.save_images.save_images(session.run(apply_batch_crop(tf.constant(image_val_batch), tf.constant(local_patch_val_batch))), '{}/images/samples_local_patches.png'.format(DIRECTORY))
 
-    lib.save_images.save_images(image_val_batch, '{}/images/samples_groundtruth.png'.format(DIRECTORY))
+    # lib.save_images.save_images(image_val_batch, '{}/images/samples_groundtruth.png'.format(DIRECTORY))
 
     # # Dataset iterator
     # train_gen, dev_gen = lib.small_imagenet.load(BATCH_SIZE, data_dir=DATA_DIR)
@@ -449,7 +452,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     # lib.save_images.save_images(session.run(apply_batch_crop(tf.constant(image_val_batch), tf.constant(local_patch_val_batch))), '{}/images/samples_local_patches.png'.format(DIRECTORY))
 
-    lib.save_images.save_images(image_val_batch, '{}/images/samples_groundtruth.png'.format(DIRECTORY))
+    # lib.save_images.save_images(image_val_batch, '{}/images/samples_groundtruth.png'.format(DIRECTORY))
 
     # Train loop
     session.run(tf.initialize_all_variables())
@@ -457,10 +460,46 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     saver = tf.train.Saver()
     saver.restore(session, "/cs280/home/ubuntu/SIC-AF/models/model.ckpt")
     print("Model restored. ")
-    generate_image("validation")
+
+    samples = session.run(all_fixed_noise_samples)
+    samples = ((samples+1.)/2)
+    samples = samples * (mask_val_batch).repeat(3, axis=1) + (1.0 - (mask_val_batch).repeat(3, axis=1)) * image_val_batch / 255.0
+
+    # print(samples.shape)
+    # print(image_val_batch.shape)
+
+    masked_originals = image_val_batch * (1.0 -(mask_val_batch).repeat(3, axis=1))
+
+    print(get_inception_score(list(np.transpose(samples, [0, 2, 3, 1]))))
+    print(get_inception_score(list(np.transpose(image_val_batch, [0, 2, 3, 1]))))
+
+    # calculate_fid_given_paths()
+
+    #
+    # for i in range(512):
+    #     sample_image = samples[i]
+    #     # print(sample_image.shape)
+    #     sample_image = np.transpose(sample_image, [1, 2, 0])
+    #     plt.imsave("test/test_{}.jpg".format(i), sample_image)
+
+    # for i in range(512):
+    #     sample_image = samples[i]
+    #     # print(sample_image.shape)
+    #     sample_image = np.transpose(sample_image, [1, 2, 0])
+    #     plt.imsave("test/test_{}.jpg".format(i), sample_image)
+    #
+    # for i in range(512):
+        # sample_image = image_val_batch[i] / 255.0
+        # # print(sample_image.shape)
+        # sample_image = np.transpose(sample_image, [1, 2, 0])
+        # plt.imsave("original/original_{}.jpg".format(i), sample_image)
+
+        # sample_image = masked_originals[i] / 255.0
+        # sample_image = np.transpose(sample_image, [1, 2, 0])
+        # plt.imsave("original_masked/masked_original_{}.jpg".format(i), sample_image)
+
+    # generate_image("validation")
     # print(1/0)
-
-
 
     # ==========================================================
 
