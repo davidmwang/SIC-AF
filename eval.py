@@ -28,10 +28,10 @@ from data.PythonAPI.utils import unison_shuffled_copies, get_mask_from_diagonal_
 # DATA_DIR = ''
 
 # Directory containing original MSCOCO images.
-IMAGE_DIRS = ["/cs280/home/ubuntu/person", "/cs280/home/ubuntu/no_people"]
+IMAGE_DIRS = ["/cs280/home/ubuntu/SIC-AF/ssd/ssd_images"]
 
 # Directory containing masks for associated MSCOCO images to use for training
-MASK_DIRS = ["/cs280/home/ubuntu/person_mask", "/cs280/home/ubuntu/no_people_mask"]
+MASK_DIRS = ["/cs280/home/ubuntu/SIC-AF/ssd/ssd_masks"]
 
 
 if len(IMAGE_DIRS) == 0 or len(MASK_DIRS) == 0:
@@ -147,21 +147,26 @@ mask_files = np.array(sorted(list(itertools.chain.from_iterable([glob.glob(mask_
 image_files = np.array(sorted(list(itertools.chain.from_iterable([glob.glob(image_dir + "/*.jpg") for image_dir in IMAGE_DIRS]))))
 mask_files, image_files = unison_shuffled_copies(mask_files, image_files)
 
-image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
-image_dataset = create_image_dataset(image_files, num_epochs, BATCH_SIZE)
-image_iterator = image_dataset.make_one_shot_iterator()
-image_val_dataset = create_image_dataset(image_val_files, 1, NUM_VAL_SAMPLES)
+# image_val_files, image_files = image_files[:NUM_VAL_SAMPLES], image_files[NUM_VAL_SAMPLES:]
+# image_dataset = create_image_dataset(image_files, num_epochs, BATCH_SIZE)
+# image_iterator = image_dataset.make_one_shot_iterator()
+# image_val_dataset = create_image_dataset(image_val_files, 1, NUM_VAL_SAMPLES)
+# image_val_iterator = image_val_dataset.make_one_shot_iterator()
+#
+# mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
+print("mask val files: ", mask_files[:5])
+print("image val files: ", image_files[:5])
+
+#
+#
+# mask_dataset = create_mask_dataset(mask_files, num_epochs, BATCH_SIZE)
+# mask_iterator = mask_dataset.make_one_shot_iterator()
+# mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
+# mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
+
+image_val_dataset = create_image_dataset(image_files, 1, BATCH_SIZE)
 image_val_iterator = image_val_dataset.make_one_shot_iterator()
-
-mask_val_files, mask_files = mask_files[:NUM_VAL_SAMPLES], mask_files[NUM_VAL_SAMPLES:]
-print("mask val files: ", mask_val_files[:5])
-print("image val files: ", image_val_files[:5])
-
-
-
-mask_dataset = create_mask_dataset(mask_files, num_epochs, BATCH_SIZE)
-mask_iterator = mask_dataset.make_one_shot_iterator()
-mask_val_dataset = create_mask_dataset(mask_val_files, 1, NUM_VAL_SAMPLES)
+mask_val_dataset = create_mask_dataset(mask_files, 1, BATCH_SIZE)
 mask_val_iterator = mask_val_dataset.make_one_shot_iterator()
 
 # local_patch_dataset = create_local_patch_coordinate_dataset(mask_files, num_epochs, BATCH_SIZE)
@@ -210,11 +215,10 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     # # binary mask placeholder
     # all_real_data_mask = tf.placeholder(tf.float32, shape=[BATCH_SIZE, 3, 64, 64])
 
-    all_real_data_conv = image_iterator.get_next()
-    all_real_data_mask = mask_iterator.get_next()
+    all_real_data_conv = tf.zeros([BATCH_SIZE, 3, IM_SIZE, IM_SIZE])
+    all_real_data_mask = tf.zeros([BATCH_SIZE, 1, IM_SIZE, IM_SIZE])
+    all_real_data_local_patch = tf.zeros([BATCH_SIZE, 3, IM_SIZE//2, IM_SIZE//2])
     all_real_data_mask.set_shape([BATCH_SIZE, 1, IM_SIZE, IM_SIZE])
-
-
 
     if tf.__version__.startswith('1.'):
         split_real_data_conv = tf.split(all_real_data_conv, len(DEVICES))
@@ -238,24 +242,26 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
             real_data_masked_and_scaled_and_concat = tf.concat([real_data_masked_and_scaled, all_real_data_mask], axis=1)
 
+
             fake_data = Generator(real_data_masked_and_scaled_and_concat)
             # print(real_data.get_shape())
 
             # real_data.set_shape([64, 3, 64, 64])
             # fake_data = Generator(real_data)
 
-            blended_fake_data = tf.multiply(fake_data, tiled_all_real_data_mask) + tf.multiply(real_data, 1-tiled_all_real_data_mask)
-            # blended_fake_data = fake_data
+            # blended_fake_data = tf.multiply(fake_data, tiled_all_real_data_mask) + tf.multiply(real_data, 1-tiled_all_real_data_mask)
+            # # blended_fake_data = fake_data
             # real_data_local = apply_batch_crop(real_data, all_real_data_local_patch)
             # blended_fake_data_local = apply_batch_crop(blended_fake_data, all_real_data_local_patch)
-
-            # disc_real = Discriminator(tf.concat(concat_dim=1,values=[real_data, all_real_data_mask]))
-
+            #
+            # disc_real = Discriminator(real_data)
+            #
+            #
             # disc_real_local = Discriminator_local(real_data_local)
-            # disc_fake = Discriminator(tf.concat(concat_dim=1,values=[blended_fake_data, all_real_data_mask]))
+            # disc_fake = Discriminator(blended_fake_data)
             # disc_fake_local = Discriminator_local(blended_fake_data_local)
-
-            rec_cost = tf.reduce_mean(tf.reduce_sum(tf.abs(blended_fake_data - real_data), axis=[1,2,3]))
+            #
+            # rec_cost = tf.reduce_mean(tf.reduce_sum(tf.abs(blended_fake_data - real_data), axis=[1,2,3]))
             # rec_cost = tf.reduce_mean(tf.norm(blended_fake_data - real_data, axis=0, ord=1))
 
             if MODE == 'wgan':
@@ -263,17 +269,18 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
 
             elif MODE == 'wgan-gp':
+                pass
                 # gen_cost = -tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_fake_local)
-
-                # disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
+                #
+                # disc_cost_whole = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
                 # disc_cost_local = tf.reduce_mean(disc_fake_local) - tf.reduce_mean(disc_real_local)
-
+                #
                 # disc_cost = disc_cost_whole + disc_cost_local
-
-
+                #
+                #
                 # gen_cost = LAMBDA_ADV * gen_cost + LAMBDA_REC * rec_cost
-                gen_cost = LAMBDA_REC * rec_cost
-
+                # # gen_cost = LAMBDA_REC * rec_cost
+                #
                 # alpha = tf.random_uniform(
                 #     shape=[int(BATCH_SIZE/len(DEVICES)),1],
                 #     minval=0.,
@@ -281,15 +288,15 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
                 # )
                 # alpha = tf.expand_dims(alpha, axis=-1)
                 # alpha = tf.expand_dims(alpha, axis=-1)
-
+                #
                 # differences = blended_fake_data - real_data
-
+                #
                 # interpolates = real_data + (alpha*differences)
                 # gradients = tf.gradients(Discriminator(interpolates), [interpolates])[0]
                 # slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
                 # gradient_penalty = tf.reduce_mean((slopes-1.)**2)
                 # disc_cost += LAMBDA*gradient_penalty
-                # locale
+                # # locale
                 # differences_local = blended_fake_data_local - real_data_local
                 # interpolates_local = real_data_local + (alpha*differences_local)
                 # gradients_local = tf.gradients(Discriminator(interpolates_local), [interpolates_local])[0]
@@ -318,10 +325,10 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
             else:
                 raise Exception()
 
-            gen_costs.append(gen_cost)
+            # gen_costs.append(gen_cost)
             # disc_costs.append(disc_cost)
 
-    gen_cost = tf.add_n(gen_costs) / len(DEVICES)
+    # gen_cost = tf.add_n(gen_costs) / len(DEVICES)
     # disc_cost = tf.add_n(disc_costs) / len(DEVICES)
 
     if MODE == 'wgan':
@@ -337,10 +344,11 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
         clip_disc_weights = tf.group(*clip_ops)
 
     elif MODE == 'wgan-gp':
-        gen_train_op = tf.train.AdamOptimizer(learning_rate=1e-4, beta1=0., beta2=0.9).minimize(gen_cost,
-                                          var_list=lib.params_with_name('Generator'), colocate_gradients_with_ops=True)
+        pass
+        # gen_train_op = tf.train.AdamOptimizer(learning_rate=1e-4, beta1=0., beta2=0.9).minimize(gen_cost,
+        #                                   var_list=lib.params_with_name('Generator'), colocate_gradients_with_ops=True)
         # disc_train_op = tf.train.AdamOptimizer(learning_rate=1e-4, beta1=0., beta2=0.9).minimize(disc_cost,
-                                           # var_list=lib.params_with_name('Discriminator.'), colocate_gradients_with_ops=True)
+        #                                    var_list=lib.params_with_name('Discriminator.'), colocate_gradients_with_ops=True)
 
     elif MODE == 'dcgan':
         gen_train_op = tf.train.AdamOptimizer(learning_rate=2e-4, beta1=0.5).minimize(gen_cost,
@@ -424,56 +432,78 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
 
     lib.save_images.save_images(image_val_batch, '{}/images/samples_groundtruth.png'.format(DIRECTORY))
 
+    # # Dataset iterator
+    # train_gen, dev_gen = lib.small_imagenet.load(BATCH_SIZE, data_dir=DATA_DIR)
+
+    # def inf_train_gen():
+    #     while True:
+    #         for (images,) in train_gen():
+    #             yield images
+
+    # Save a batch of ground-truth samples
+
+    # print("image_val_batch shape: ", tf.constant(image_val_batch).get_shape())
+    # print("image val patch batch: ", tf.constant(local_patch_val_batch).get_shape())
+
+    # print(local_patch_val_batch)
+
+    # lib.save_images.save_images(session.run(apply_batch_crop(tf.constant(image_val_batch), tf.constant(local_patch_val_batch))), '{}/images/samples_local_patches.png'.format(DIRECTORY))
+
+    lib.save_images.save_images(image_val_batch, '{}/images/samples_groundtruth.png'.format(DIRECTORY))
+
     # Train loop
     session.run(tf.initialize_all_variables())
 
     saver = tf.train.Saver()
-    saver.restore(session, "/cs280/home/ubuntu/l1_concat_downsample/models/model.ckpt")
+    saver.restore(session, "/cs280/home/ubuntu/SIC-AF/models/model.ckpt")
     print("Model restored. ")
+    generate_image("validation")
+    # print(1/0)
+
 
 
     # ==========================================================
 
-    img_file = "test_img.jpg"
-    mask_file = "test_mask.npy"
-
-
-    mask = np.load(mask_file)[:, :, 0].astype(np.float32)
-
-    mask = imresize(mask, (IM_SIZE, IM_SIZE))
-    mask = mask.astype(np.float32)
-    mask = mask/float(np.max(mask))
-
-    mask_ph = tf.placeholder(tf.float32, shape=(IM_SIZE, IM_SIZE))
-    mask_tensor = tf.expand_dims(mask_ph, axis=0)
-
-    img = tf.image.resize_images(tf.image.decode_jpeg(tf.read_file(img_file)), size=(IM_SIZE, IM_SIZE))
-
-
-    # img = tf.Print(img, [tf.shape(img)], message="img shape...")
-
-    img = tf.transpose(img, [2, 0, 1])
-    img.set_shape([3, IM_SIZE, IM_SIZE])
-
-    img = 2*((tf.cast(img, tf.float32)/255.)-.5)
-
-
-
-    print("img shape before: ", img.get_shape())
-    print("mask shape before: ", mask_tensor.get_shape())
-
-    img_and_mask_concat = tf.concat([img, mask_tensor], axis=0)
-
-
-
-    img_and_mask_concat = tf.expand_dims(img_and_mask_concat, axis=0)
-
-
-
-    print("image and mask concat shape. ", img_and_mask_concat.get_shape())
-
-    test_gen = Generator(img_and_mask_concat)
-
-
-
-    output = session.run(test_gen, feed_dict={mask_ph: mask})
+    # img_file = "test_img.jpg"
+    # mask_file = "test_mask.npy"
+    #
+    #
+    # mask = np.load(mask_file)[:, :, 0].astype(np.float32)
+    #
+    # mask = imresize(mask, (IM_SIZE, IM_SIZE))
+    # mask = mask.astype(np.float32)
+    # mask = mask/float(np.max(mask))
+    #
+    # mask_ph = tf.placeholder(tf.float32, shape=(IM_SIZE, IM_SIZE))
+    # mask_tensor = tf.expand_dims(mask_ph, axis=0)
+    #
+    # img = tf.image.resize_images(tf.image.decode_jpeg(tf.read_file(img_file)), size=(IM_SIZE, IM_SIZE))
+    #
+    #
+    # # img = tf.Print(img, [tf.shape(img)], message="img shape...")
+    #
+    # img = tf.transpose(img, [2, 0, 1])
+    # img.set_shape([3, IM_SIZE, IM_SIZE])
+    #
+    # img = 2*((tf.cast(img, tf.float32)/255.)-.5)
+    #
+    #
+    #
+    # print("img shape before: ", img.get_shape())
+    # print("mask shape before: ", mask_tensor.get_shape())
+    #
+    # img_and_mask_concat = tf.concat([img, mask_tensor], axis=0)
+    #
+    #
+    #
+    # img_and_mask_concat = tf.expand_dims(img_and_mask_concat, axis=0)
+    #
+    #
+    #
+    # print("image and mask concat shape. ", img_and_mask_concat.get_shape())
+    #
+    # test_gen = Generator(img_and_mask_concat)
+    #
+    #
+    #
+    # output = session.run(test_gen, feed_dict={mask_ph: mask})
