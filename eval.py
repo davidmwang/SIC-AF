@@ -458,29 +458,30 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as session:
     session.run(tf.initialize_all_variables())
 
     saver = tf.train.Saver()
-    saver.restore(session, "/cs280/home/ubuntu/SIC-AF/models/model.ckpt")
+    saver.restore(session, "/cs280/home/ubuntu/SIC-AF/temp_models/model.ckpt")
     print("Model restored. ")
 
     samples = session.run(all_fixed_noise_samples)
     samples = ((samples+1.)/2)
     samples = samples * (mask_val_batch).repeat(3, axis=1) + (1.0 - (mask_val_batch).repeat(3, axis=1)) * image_val_batch / 255.0
 
-    # print(samples.shape)
-    # print(image_val_batch.shape)
+    print(samples.shape)
+    print(image_val_batch.shape)
 
-    masked_originals = image_val_batch * (1.0 -(mask_val_batch).repeat(3, axis=1))
-
-    print(get_inception_score(list(np.transpose(samples, [0, 2, 3, 1]))))
-    print(get_inception_score(list(np.transpose(image_val_batch, [0, 2, 3, 1]))))
-
-    # calculate_fid_given_paths()
-
-    #
     # for i in range(512):
     #     sample_image = samples[i]
     #     # print(sample_image.shape)
     #     sample_image = np.transpose(sample_image, [1, 2, 0])
-    #     plt.imsave("test/test_{}.jpg".format(i), sample_image)
+    #     plt.imsave("local_and_global_images/local_and_global_{}.jpg".format(i), sample_image)
+
+    masked_originals = image_val_batch * (1.0 -(mask_val_batch).repeat(3, axis=1))
+
+    print(get_inception_score(list(np.transpose(samples * 255.0, [0, 2, 3, 1]))))
+    # print(get_inception_score(list(np.transpose(image_val_batch, [0, 2, 3, 1]))))
+
+    # calculate_fid_given_paths()
+
+    #
 
     # for i in range(512):
     #     sample_image = samples[i]
